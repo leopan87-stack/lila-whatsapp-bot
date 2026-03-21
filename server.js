@@ -4,6 +4,7 @@ const Anthropic = require('@anthropic-ai/sdk');
 const twilio = require('twilio');
 const cron = require('node-cron');
 const axios = require('axios');
+const sharp = require('sharp');
 
 const app = express();
 app.use(express.urlencoded({ extended: false }));
@@ -12,7 +13,7 @@ app.use(express.json());
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
 
-const FROM_NUMBER = process.env.TWILIO_WHATSAPP_NUMBER; // e.g. whatsapp:+14155238886
+const FROM_NUMBER = process.env.TWILIO_WHATSAPP_NUMBER;
 
 // Route by country code: +58 = Venezuela → Agro Bot, otherwise → Lila Bot
 function isAgroUser(from) {
@@ -65,7 +66,6 @@ const GROUP = [
   'whatsapp:+17864898034',
 ];
 
-// State machine per number: 'idle' | 'waiting_for_photo' | 'waiting_for_approval'
 const state = {};
 const lastContent = {};
 
@@ -81,11 +81,15 @@ async function sendMessage(to, body) {
   await twilioClient.messages.create({ from: FROM_NUMBER, to, body });
 }
 
+async function sendImageMessage(to, imageUrl, caption) {
+  await twilioClient.messages.create({ from: FROM_NUMBER, to, mediaUrl: [imageUrl], body: caption });
+}
+
 async function broadcastMorningPing() {
   console.log('📅 Sending morning ping to group...');
   const message =
     '✨ Good morning! Time for today\'s Lila Miami post 📸\n\n' +
-    'Send me a product photo and I\'ll write the perfect Instagram caption, hashtags, and the best time to post!';
+    'Send me a product photo and I\'ll create a branded Instagram image with caption, hashtags, and the best time to post!';
   for (const number of GROUP) {
     try {
       await sendMessage(number, message);
@@ -97,12 +101,11 @@ async function broadcastMorningPing() {
   }
 }
 
-// Schedule 10:00 AM Miami time every day
 cron.schedule('0 10 * * *', broadcastMorningPing, {
   timezone: 'America/New_York',
 });
 
-async function downloadImageAsBase64(mediaUrl) {
+async function downloadImageBuffer(mediaUrl) {
   const response = await axios.get(mediaUrl, {
     auth: {
       username: process.env.TWILIO_ACCOUNT_SID,
@@ -111,8 +114,104 @@ async function downloadImageAsBase64(mediaUrl) {
     responseType: 'arraybuffer',
   });
   const contentType = response.headers['content-type'] || 'image/jpeg';
-  const base64 = Buffer.from(response.data).toString('base64');
-  return { base64, contentType };
+  const buffer = Buffer.from(response.data);
+  return { buffer, contentType };
+}
+
+function escapeXml(str) {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+function wrapText(text, maxChars) {
+  const words = text.split(' ');
+  const lines = [];
+  let current = '';
+  for (const word of words) {
+    if ((current + ' ' + word).trim().length > maxChars) {
+      if (current) lines.push(current.trim());
+      current = word;
+    } else {
+      current = (current + ' ' + word).trim();
+    }
+  }
+  if (current) lines.push(current.trim());
+  return lines;
+}
+
+async function createBrandedImage(imageBuffer, captionText) {
+  const SIZE = 1080;
+
+  // Resize image to Instagram square
+  const resized = await sharp(imageBuffer)
+    .resize(SIZE, SIZE, { fit: 'cover', position: 'center' })
+    .toBuffer();
+
+  // Wrap caption to max 3 lines
+  const lines = wrapText(captionText, 42).slice(0, 3);
+  const lineHeight = 54;
+  const textAreaHeight = lines.length * lineHeight + 100;
+  const gradientStart = SIZE - textAreaHeight - 40;
+
+  const textElements = lines.map((line, i) => `
+    <text
+      x="50"
+      y="${SIZE - textAreaHeight + 20 + i * lineHeight}"
+      font-family="Georgia, Times New Roman, serif"
+      font-size="40"
+      fill="white"
+      font-style="italic"
+    >${escapeXml(line)}</text>`).join('');
+
+  const svgOverlay = `<svg width="${SIZE}" height="${SIZE}" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#000000" stop-opacity="0"/>
+        <stop offset="60%" stop-color="#000000" stop-opacity="0.55"/>
+        <stop offset="100%" stop-color="#000000" stop-opacity="0.82"/>
+      </linearGradient>
+    </defs>
+    <rect x="0" y="${gradientStart}" width="${SIZE}" height="${SIZE - gradientStart}" fill="url(#grad)"/>
+    ${textElements}
+    <text
+      x="50"
+      y="${SIZE - 38}"
+      font-family="Georgia, Times New Roman, serif"
+      font-size="30"
+      fill="#D4AF37"
+      letter-spacing="5"
+      font-style="italic"
+    >@lilamiami</text>
+  </svg>`;
+
+  const branded = await sharp(resized)
+    .composite([{ input: Buffer.from(svgOverlay), blend: 'over' }])
+    .jpeg({ quality: 92 })
+    .toBuffer();
+
+  return branded;
+}
+
+async function uploadToImgBB(imageBuffer) {
+  const base64 = imageBuffer.toString('base64');
+  const params = new URLSearchParams({ key: process.env.IMGBB_API_KEY, image: base64 });
+  const response = await axios.post('https://api.imgbb.com/1/upload', params.toString(), {
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+  });
+  return response.data.data.url;
+}
+
+function extractCaption(fullContent) {
+  // Pull text between CAPTION section and the next section
+  const match = fullContent.match(/📝\s*CAPTION\s*\n([\s\S]*?)(?=\n#️⃣|\n⏰|\n💡|$)/i);
+  if (match) return match[1].trim();
+  // Fallback: first 2 sentences
+  const sentences = fullContent.split(/[.!?]/);
+  return sentences.slice(0, 2).join('. ').trim() + '.';
 }
 
 async function generateContent(imageBase64, imageContentType, userCaption) {
@@ -147,16 +246,9 @@ One actionable tip to boost engagement for this specific photo (lighting, story 
         content: [
           {
             type: 'image',
-            source: {
-              type: 'base64',
-              media_type: imageContentType,
-              data: imageBase64,
-            },
+            source: { type: 'base64', media_type: imageContentType, data: imageBase64 },
           },
-          {
-            type: 'text',
-            text: userText,
-          },
+          { type: 'text', text: userText },
         ],
       },
     ],
@@ -166,29 +258,42 @@ One actionable tip to boost engagement for this specific photo (lighting, story 
 }
 
 async function processPhoto(from, mediaUrl, mediaContentType, caption) {
-  await sendMessage(from, '📸 Got it! Analyzing your photo and crafting the perfect post... give me a sec ✨');
+  await sendMessage(from, '📸 Got it! Creating your branded post... give me a sec ✨');
 
   try {
-    const { base64, contentType } = await downloadImageAsBase64(mediaUrl);
-    const content = await generateContent(base64, contentType, caption);
+    const { buffer, contentType } = await downloadImageBuffer(mediaUrl);
+    const base64 = buffer.toString('base64');
 
+    // Generate content with Claude
+    const content = await generateContent(base64, contentType, caption);
     lastContent[from] = content;
+
+    // Extract caption for image overlay
+    const shortCaption = extractCaption(content);
+
+    // Create branded image
+    const brandedBuffer = await createBrandedImage(buffer, shortCaption);
+
+    // Upload to ImgBB
+    const imageUrl = await uploadToImgBB(brandedBuffer);
+
     setState(from, 'waiting_for_approval');
 
+    // Send branded image first
+    await sendImageMessage(from, imageUrl, '💎 Here\'s your branded Instagram post:');
+
+    // Then send full text content
     await sendMessage(from, content);
-    await sendMessage(
-      from,
-      '---\nReply *YES* to confirm ✅\nReply *RECREATE* for a different version 🔄\nReply *NO* to cancel ❌'
-    );
+    await sendMessage(from, '---\nReply *YES* to confirm ✅\nReply *RECREATE* for a different version 🔄\nReply *NO* to cancel ❌');
+
   } catch (err) {
     console.error('❌ Error generating content:', err.message);
-    await sendMessage(from, 'Something went wrong generating your post. Try sending the photo again! 🙏');
+    await sendMessage(from, 'Something went wrong. Try sending the photo again! 🙏');
     setState(from, 'waiting_for_photo');
   }
 }
 
 app.post('/webhook', async (req, res) => {
-  // Respond immediately to Twilio to avoid timeout
   res.status(200).send('OK');
 
   const from = req.body.From;
@@ -200,7 +305,6 @@ app.post('/webhook', async (req, res) => {
 
   console.log(`📩 From ${from}: "${rawBody}" | Media: ${numMedia}`);
 
-  // Route Venezuelan numbers to Agro Bot
   if (isAgroUser(from)) {
     try {
       await handleAgroMessage(from, rawBody || '(sin texto)');
@@ -213,24 +317,21 @@ app.post('/webhook', async (req, res) => {
 
   const currentState = getState(from);
 
-  // Universal reset commands
   if (['hola', 'hello', 'hi', 'reset', 'start', 'menu'].includes(body)) {
     setState(from, 'waiting_for_photo');
-    await sendMessage(from, '👋 Hi! Send me a Lila Miami product photo and I\'ll write your Instagram post! 📸');
+    await sendMessage(from, '👋 Hi! Send me a Lila Miami product photo and I\'ll create your branded Instagram post! 📸');
     return;
   }
 
-  // --- WAITING FOR PHOTO ---
   if (currentState === 'waiting_for_photo') {
     if (numMedia > 0 && mediaUrl) {
       await processPhoto(from, mediaUrl, mediaContentType, rawBody);
     } else {
-      await sendMessage(from, '📷 Please send a photo! I need to see the product to write the caption.');
+      await sendMessage(from, '📷 Please send a photo! I need to see the product to create the post.');
     }
     return;
   }
 
-  // --- WAITING FOR APPROVAL ---
   if (currentState === 'waiting_for_approval') {
     const isYes = ['yes', 'si', 'sí', 'yep', 'yeah', 'ok', 'perfect', 'perfecto', 'listo'].some(w => body.includes(w));
     const isRecreate = ['recreate', 'otra', 'again', 'new', 'different', 'cambiar', 'otro'].some(w => body.includes(w));
@@ -238,36 +339,28 @@ app.post('/webhook', async (req, res) => {
 
     if (isYes) {
       setState(from, 'idle');
-      await sendMessage(
-        from,
-        '✅ Your post is ready to go!\n\nCopy the caption + hashtags above and post it on Instagram 🚀\n\n💎 Keep it consistent — regular posting grows Lila Miami!'
-      );
+      await sendMessage(from, '✅ Your post is ready!\n\nSave the image above + copy the caption and hashtags → post on Instagram 🚀\n\n💎 Consistency is everything — keep posting!');
     } else if (isRecreate) {
       setState(from, 'waiting_for_photo');
-      await sendMessage(from, '🔄 Got it! Resend the photo and I\'ll write a completely different version 📸');
+      await sendMessage(from, '🔄 Got it! Resend the photo and I\'ll create a completely different version 📸');
     } else if (isNo) {
       setState(from, 'idle');
       await sendMessage(from, 'No problem! Whenever you\'re ready, just send a photo 📸');
     } else if (numMedia > 0 && mediaUrl) {
-      // They sent a new photo instead of replying — treat as fresh request
       await processPhoto(from, mediaUrl, mediaContentType, rawBody);
     } else {
-      await sendMessage(
-        from,
-        'Reply *YES* to confirm ✅, *RECREATE* for a new version 🔄, or *NO* to cancel ❌'
-      );
+      await sendMessage(from, 'Reply *YES* to confirm ✅, *RECREATE* for a new version 🔄, or *NO* to cancel ❌');
     }
     return;
   }
 
-  // --- IDLE state ---
+  // IDLE
   if (numMedia > 0 && mediaUrl) {
-    // Photo sent without morning ping — jump right in
     setState(from, 'waiting_for_photo');
     await processPhoto(from, mediaUrl, mediaContentType, rawBody);
   } else {
     setState(from, 'waiting_for_photo');
-    await sendMessage(from, '👋 Hi! Send me a Lila Miami product photo and I\'ll write your Instagram post! 📸');
+    await sendMessage(from, '👋 Hi! Send me a Lila Miami product photo and I\'ll create your branded Instagram post! 📸');
   }
 });
 
