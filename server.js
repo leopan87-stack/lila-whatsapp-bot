@@ -14,6 +14,51 @@ const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_A
 
 const FROM_NUMBER = process.env.TWILIO_WHATSAPP_NUMBER; // e.g. whatsapp:+14155238886
 
+// Route by country code: +58 = Venezuela → Agro Bot, otherwise → Lila Bot
+function isAgroUser(from) {
+  return from.includes('+58');
+}
+
+// ─── AGRO BOT ────────────────────────────────────────────────────────────────
+
+const AGRO_SYSTEM_PROMPT = `Eres un ingeniero agrónomo experto que trabaja para una tienda de insumos agrícolas en Venezuela.
+Tu misión es ayudar a los agricultores venezolanos con sus preguntas sobre cultivos, plagas, enfermedades,
+fertilización, riego y manejo agronómico en general.
+
+INSTRUCCIONES:
+- Responde siempre en español, de forma clara y práctica
+- Da consejos adaptados al clima y condiciones de Venezuela
+- Sé específico con dosis, productos y técnicas cuando sea necesario
+- Si la pregunta es sobre un cultivo común en Venezuela (maíz, arroz, caña, café, cacao, plátano, yuca, tomate, pimentón, etc.), da respuestas detalladas
+- Si no tienes suficiente información sobre el problema, haz preguntas cortas para entender mejor la situación (zona, tipo de suelo, síntomas, etc.)
+- Mantén un tono amigable y accesible, como si hablaras con un agricultor de confianza
+- Si el agricultor menciona síntomas de plagas o enfermedades, ayúdalo a identificarlas y da recomendaciones de control
+- Respuestas deben ser concisas pero completas — no más de 3-4 párrafos por respuesta
+
+IMPORTANTE: Solo responde preguntas relacionadas con agricultura, cultivos, agronomía e insumos agrícolas.
+Si te preguntan algo fuera de ese tema, responde amablemente que solo puedes ayudar con temas agrícolas.`;
+
+const agroConversations = {};
+
+async function handleAgroMessage(from, messageText) {
+  if (!agroConversations[from]) agroConversations[from] = [];
+  agroConversations[from].push({ role: 'user', content: messageText });
+  if (agroConversations[from].length > 10) agroConversations[from].shift();
+
+  const response = await anthropic.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 1024,
+    system: AGRO_SYSTEM_PROMPT,
+    messages: agroConversations[from],
+  });
+
+  const reply = response.content[0].text;
+  agroConversations[from].push({ role: 'assistant', content: reply });
+  await sendMessage(from, reply);
+}
+
+// ─── LILA BOT ────────────────────────────────────────────────────────────────
+
 const GROUP = [
   'whatsapp:+13055049095',
   'whatsapp:+17868438920',
@@ -154,6 +199,17 @@ app.post('/webhook', async (req, res) => {
   const numMedia = parseInt(req.body.NumMedia || '0', 10);
 
   console.log(`📩 From ${from}: "${rawBody}" | Media: ${numMedia}`);
+
+  // Route Venezuelan numbers to Agro Bot
+  if (isAgroUser(from)) {
+    try {
+      await handleAgroMessage(from, rawBody || '(sin texto)');
+    } catch (err) {
+      console.error('❌ Agro bot error:', err.message);
+      await sendMessage(from, 'Lo siento, ocurrió un error. Intenta de nuevo 🙏');
+    }
+    return;
+  }
 
   const currentState = getState(from);
 
