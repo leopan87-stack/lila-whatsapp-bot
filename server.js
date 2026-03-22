@@ -97,12 +97,11 @@ STRICTLY FORBIDDEN: skin smoothing, airbrushing, dodge and burn, frequency separ
 - The photo must look like a real professional camera shot, not AI-generated
 - Output: square 1:1 format, photorealistic, no text, no watermarks`
     : `You are a luxury photographer for Lila Miami, a jewelry brand in Miami.
-Transform this photo into an editorial Instagram image:
-- Keep the ENTIRE photo composition EXACTLY as-is — same background, same setting, same objects, same layout — do NOT replace or change the background
-- If there is a person in the photo, keep them EXACTLY as-is — do NOT alter their face, body, skin, or appearance in any way
-- Keep the jewelry EXACTLY as-is — same shape, colors, materials, design — do NOT modify it
-- Enhance the colors, tones, and lighting of the existing background to complement and harmonize with the jewelry's colors and mood
-- Make the lighting more luxurious and editorial — enhance glow on the jewelry without changing the scene
+You are a luxury jewelry photographer. Take this product photo and create a stunning editorial version:
+- Keep the jewelry EXACTLY as-is — same shape, colors, stones, materials — do NOT modify the jewelry at all
+- Replace the background with a beautiful, luxurious setting that perfectly complements the jewelry's colors and style — think soft marble, warm silk fabric, natural stone, velvet, or an elegant lifestyle environment
+- Enhance the lighting to make the jewelry sparkle and glow
+- The result should look like a high-end jewelry brand Instagram post
 - Output: square 1:1 format, photorealistic, no text, no watermarks`;
 
   let enhancedBuffer;
@@ -132,6 +131,7 @@ Transform this photo into an editorial Instagram image:
     }
   } catch (e) {
     console.warn('⚠️ Gemini failed:', e.response?.data?.error?.message || e.message);
+    console.warn('⚠️ Gemini full error:', JSON.stringify(e.response?.data || e.message));
   }
 
   // Fallback: if Gemini failed, use the original photo — still gets our text overlay
