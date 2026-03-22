@@ -8,13 +8,7 @@ const sharp = require('sharp');
 const fs = require('fs');
 const path = require('path');
 const Jimp = require('jimp');
-const { createCanvas, loadImage, GlobalFonts } = require('@napi-rs/canvas');
-
-// Register fonts
-const playfairPath = path.join(__dirname, 'fonts', 'PlayfairDisplay-Regular.ttf');
-const robotoPath = path.join(__dirname, 'fonts', 'Roboto-Regular.ttf');
-if (fs.existsSync(playfairPath)) { GlobalFonts.registerFromPath(playfairPath, 'Playfair'); console.log('✅ Playfair Display loaded'); }
-if (fs.existsSync(robotoPath)) { GlobalFonts.registerFromPath(robotoPath, 'Roboto'); console.log('✅ Roboto loaded'); }
+console.log('✅ Jimp ready');
 
 const app = express();
 app.use(express.urlencoded({ extended: false }));
@@ -163,18 +157,24 @@ async function createBrandedImage(imageBuffer, captionText) {
     .jpeg({ quality: 95 })
     .toBuffer();
 
-  // Load into canvas for text overlay
-  const img = await loadImage(vignetteBuffer);
-  const canvas = createCanvas(SIZE, SIZE);
-  const ctx = canvas.getContext('2d');
-  ctx.drawImage(img, 0, 0, SIZE, SIZE);
+  // Load into Jimp for text overlay
+  const image = await Jimp.read(vignetteBuffer);
 
-  // Dark gradient at bottom
-  const grad = ctx.createLinearGradient(0, SIZE - 420, 0, SIZE);
-  grad.addColorStop(0, 'rgba(0,0,0,0)');
-  grad.addColorStop(1, 'rgba(0,0,0,0.82)');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, SIZE - 420, SIZE, 420);
+  // Dark gradient at bottom (pixel-by-pixel)
+  const gradStart = Math.floor(SIZE * 0.58);
+  for (let y = gradStart; y < SIZE; y++) {
+    const alpha = Math.floor(((y - gradStart) / (SIZE - gradStart)) * 180);
+    for (let x = 0; x < SIZE; x++) {
+      const color = image.getPixelColor(x, y);
+      const r = (color >> 24) & 0xff;
+      const g = (color >> 16) & 0xff;
+      const b = (color >> 8) & 0xff;
+      const nr = Math.max(0, r - Math.floor(r * alpha / 255));
+      const ng = Math.max(0, g - Math.floor(g * alpha / 255));
+      const nb = Math.max(0, b - Math.floor(b * alpha / 255));
+      image.setPixelColor(Jimp.rgbaToInt(nr, ng, nb, 255), x, y);
+    }
+  }
 
   // Clean caption — first complete sentence only
   let clean = stripEmojis(captionText);
@@ -188,35 +188,18 @@ async function createBrandedImage(imageBuffer, captionText) {
   }
   console.log(`🖊️ Drawing: "${clean}"`);
 
-  // Word wrap by character count
-  const words = clean.split(' ');
-  const lines = [];
-  let cur = '';
-  for (const w of words) {
-    const test = cur ? cur + ' ' + w : w;
-    if (test.length > 28) { if (cur) lines.push(cur); cur = w; if (lines.length >= 2) break; }
-    else cur = test;
-  }
-  if (cur && lines.length < 3) lines.push(cur);
+  // Load Jimp built-in fonts
+  const font64 = await Jimp.loadFont(Jimp.FONT_SANS_64_WHITE);
+  const font16 = await Jimp.loadFont(Jimp.FONT_SANS_16_WHITE);
 
-  // Draw caption in Playfair Display — elegant serif
-  ctx.font = '72px Playfair';
-  ctx.fillStyle = 'white';
-  ctx.textBaseline = 'bottom';
-  const lineH = 84;
-  const startY = SIZE - 90 - (lines.length - 1) * lineH;
-  lines.forEach((line, i) => ctx.fillText(line, 50, startY + i * lineH));
+  // Print caption text (auto word-wrap by pixel width)
+  image.print(font64, 50, SIZE - 300, { text: clean, alignmentX: Jimp.HORIZONTAL_ALIGN_LEFT }, SIZE - 100, 240);
 
-  // Tagline — small caps style
-  ctx.font = '22px Roboto';
-  ctx.fillStyle = 'rgba(255,255,255,0.75)';
-  ctx.fillText("MIAMI'S EVERYDAY GOLD", 50, SIZE - 42);
+  // Tagline + @lilamiami at bottom
+  image.print(font16, 50, SIZE - 55, "MIAMI'S EVERYDAY GOLD");
+  image.print(font16, SIZE - 220, SIZE - 55, '@lilamiami');
 
-  // @lilamiami right aligned
-  ctx.textAlign = 'right';
-  ctx.fillText('@lilamiami', SIZE - 50, SIZE - 42);
-
-  return canvas.toBuffer('image/jpeg');
+  return await image.getBufferAsync(Jimp.MIME_JPEG);
 }
 
 async function uploadToImgBB(imageBuffer) {
