@@ -312,7 +312,7 @@ async function handleWebsitePull(from) {
 
     await sendImageMessage(from, whatsappUrl, `💎 Here's today's post for *${product.title}*:`);
     await new Promise(r => setTimeout(r, 2000));
-    for (const chunk of splitMessage(content)) await sendMessage(from, chunk);
+    for (const chunk of splitMessage(extractInstagramCaption(content))) await sendMessage(from, chunk);
     await sendMessage(from, `What do you think, ${getName(from)}? 👆\n\n*YES* — post it to Instagram ✅\n*RECREATE* — try a different version 🔄\n*NO* — skip this one ❌`);
 
   } catch (err) {
@@ -746,8 +746,8 @@ async function processPhoto(from, mediaUrl, mediaContentType, caption) {
     await sendImageMessage(from, imageUrl, '💎 Here\'s your branded Instagram post:');
     await new Promise(r => setTimeout(r, 2000));
 
-    // Send content split into chunks (Twilio 1600 char limit)
-    for (const chunk of splitMessage(content)) {
+    // Send caption + hashtags only (no tip/timing — that's internal)
+    for (const chunk of splitMessage(extractInstagramCaption(content))) {
       await sendMessage(from, chunk);
     }
     await sendMessage(from, `What do you think, ${getName(from)}? 👆\n\n*YES* — post it to Instagram ✅\n*RECREATE* — try a different version 🔄\n*NO* — skip this one ❌`);
@@ -836,7 +836,7 @@ app.post('/webhook', async (req, res) => {
         setState(from, 'waiting_for_approval');
         await sendImageMessage(from, whatsappUrl, `💎 Here's your post for *${product.title}*:`);
         await new Promise(r => setTimeout(r, 2000));
-        for (const chunk of splitMessage(content)) await sendMessage(from, chunk);
+        for (const chunk of splitMessage(extractInstagramCaption(content))) await sendMessage(from, chunk);
         await sendMessage(from, `What do you think, ${getName(from)}? 👆\n\n*YES* — post it to Instagram ✅\n*RECREATE* — try a different version 🔄\n*NO* — skip this one ❌`);
       } else {
         await sendMessage(from, `That product doesn't have an image in the store. Send me a photo and I'll use that! 📸`);
