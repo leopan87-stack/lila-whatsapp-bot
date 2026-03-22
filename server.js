@@ -24,6 +24,24 @@ const app = express();
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 
+// In-memory image store — serves images to Instagram (ImgBB blocks IG crawlers)
+const imageStore = new Map();
+app.get('/img/:id', (req, res) => {
+  const buf = imageStore.get(req.params.id);
+  if (!buf) return res.status(404).send('Not found');
+  res.set('Content-Type', 'image/jpeg');
+  res.set('Cache-Control', 'public, max-age=600');
+  res.send(buf);
+});
+
+function storeImageForInstagram(buffer) {
+  const id = Date.now().toString(36) + Math.random().toString(36).slice(2);
+  imageStore.set(id, buffer);
+  setTimeout(() => imageStore.delete(id), 15 * 60 * 1000); // auto-cleanup after 15 min
+  const base = process.env.BASE_URL || 'https://lila-whatsapp-bot-production.up.railway.app';
+  return `${base}/img/${id}`;
+}
+
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
 
@@ -435,9 +453,13 @@ async function processPhoto(from, mediaUrl, mediaContentType, caption) {
         .toBuffer();
     }
 
-    // Upload to ImgBB
+    // Upload to ImgBB (for WhatsApp preview)
     const imageUrl = await uploadToImgBB(brandedBuffer);
-    lastImageUrl[from] = imageUrl;
+
+    // Store in memory for Instagram (ImgBB blocked by IG crawlers)
+    const igImageUrl = storeImageForInstagram(brandedBuffer);
+    lastImageUrl[from] = igImageUrl;
+    console.log(`📸 Instagram URL: ${igImageUrl}`);
 
     // Extract full caption + hashtags for Instagram post
     const igCaption = extractInstagramCaption(content);
