@@ -128,11 +128,9 @@ function escapeXml(str) {
 }
 
 function stripEmojis(str) {
+  // Keep only printable ASCII characters — guaranteed to render on any server
   return str
-    .replace(/[\u{1F300}-\u{1FFFF}]/gu, '')
-    .replace(/[\u{2600}-\u{26FF}]/gu, '')
-    .replace(/[\u{2700}-\u{27BF}]/gu, '')
-    .replace(/[\u{FE00}-\u{FE0F}]/gu, '')
+    .replace(/[^\x20-\x7E]/g, '')
     .replace(/\s+/g, ' ')
     .trim();
 }
