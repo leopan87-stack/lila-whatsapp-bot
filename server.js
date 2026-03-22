@@ -261,6 +261,16 @@ function getName(number) {
   return NAMES[number] || 'there';
 }
 
+// Returns ms until 12:00 PM ET (peak posting time for Lila Miami)
+function getMsUntilNoonET() {
+  const now = new Date();
+  const etHour = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false }).format(now));
+  const etMinute = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', minute: 'numeric' }).format(now));
+  const etSecond = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', second: 'numeric' }).format(now));
+  if (etHour >= 12) return 0; // already at or past noon — post now
+  return ((12 - etHour) * 3600 - etMinute * 60 - etSecond) * 1000;
+}
+
 // Best posting times based on Lila Miami Instagram Insights (2,620 followers)
 function getBestPostingTime() {
   const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -934,13 +944,33 @@ app.post('/webhook', async (req, res) => {
 
     if (isYes) {
       setState(from, 'idle');
-      await sendMessage(from, `On it, ${getName(from)}! Posting to Instagram now... ⏳`);
-      try {
-        await postToInstagram(lastImageUrl[from], lastCaption[from]);
-        await sendMessage(from, `Done! 🎉 It's live on Instagram. Great content, ${getName(from)} — keep it up! 💎\n\n${getBestPostingTime()}`);
-      } catch (igErr) {
-        console.error('❌ Instagram post failed:', igErr.response?.data || igErr.message);
-        await sendMessage(from, `Hmm, Instagram didn't accept it this time. The image is saved so you can post it manually. Sorry about that! 🙏\n\nError: ` + (igErr.response?.data?.error?.message || igErr.message));
+      const delay = getMsUntilNoonET();
+      const imageUrl = lastImageUrl[from];
+      const caption = lastCaption[from];
+      const name = getName(from);
+
+      if (delay > 0) {
+        const minutesLeft = Math.round(delay / 60000);
+        await sendMessage(from, `Perfect, ${name}! 🕐 Post is ready and scheduled for *12:00 PM ET* — your peak time.\n\nI'll publish it automatically in ${minutesLeft} minutes. You're all set! 💎`);
+        setTimeout(async () => {
+          try {
+            await postToInstagram(imageUrl, caption);
+            await sendMessage(from, `🎉 It's live! Your post just went up on Instagram at peak time. Great work, ${name}! 💎`);
+          } catch (igErr) {
+            console.error('❌ Scheduled Instagram post failed:', igErr.response?.data || igErr.message);
+            await sendMessage(from, `⚠️ Scheduled post failed at 12 PM. You can post it manually. Sorry! Error: ` + (igErr.response?.data?.error?.message || igErr.message));
+          }
+        }, delay);
+      } else {
+        // Already at or past noon — post immediately
+        await sendMessage(from, `On it, ${name}! Posting to Instagram now... ⏳`);
+        try {
+          await postToInstagram(imageUrl, caption);
+          await sendMessage(from, `Done! 🎉 It's live on Instagram. Great content, ${name} — keep it up! 💎\n\n${getBestPostingTime()}`);
+        } catch (igErr) {
+          console.error('❌ Instagram post failed:', igErr.response?.data || igErr.message);
+          await sendMessage(from, `Hmm, Instagram didn't accept it this time. The image is saved so you can post it manually. Sorry about that! 🙏\n\nError: ` + (igErr.response?.data?.error?.message || igErr.message));
+        }
       }
     } else if (isRecreate) {
       setState(from, 'waiting_for_photo');
