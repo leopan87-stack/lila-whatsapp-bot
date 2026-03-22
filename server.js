@@ -42,11 +42,14 @@ Using the product photo as reference, generate a close-up lifestyle photo of the
 
 - Frame the shot tightly on the body part where the jewelry sits: wrist and hand for a bracelet, neck and collarbone for a necklace, earlobe and neck for earrings, finger for a ring
 - The face must NOT appear in the frame at all — crop well above or below it
-- Warm Latina skin tone, natural and realistic skin texture
+- Warm Latina skin tone, matte and natural — skin looks real, not oily, not shiny, not plastic
+- Skin has subtle visible texture: fine pores, faint hair follicles, natural variation in tone — no airbrushing
+- NO specular highlights or wet-looking shine on skin — matte finish like real skin in soft light
+- Skin color is warm and even but not perfect — slight natural variation between wrist, knuckles, and fingers
 - The jewelry must match EXACTLY the design, colors, stones, and materials from the reference photo
 - The jewelry is the clear hero of the shot — well-lit, sharp, and beautiful
 - Background is soft, warm, slightly blurred — lifestyle feel, real environment
-- Lighting is natural, soft, and flattering — no harsh flash
+- Lighting is diffused and soft — no harsh flash, no direct sun creating shine or hot spots on skin
 - The photo must look like a real professional camera shot, not AI-generated
 - Output: square 1:1 format, photorealistic, no text, no watermarks`
     : `You are a luxury photographer for Lila Miami, a jewelry brand in Miami.
