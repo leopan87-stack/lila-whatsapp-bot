@@ -5,6 +5,12 @@ const twilio = require('twilio');
 const cron = require('node-cron');
 const axios = require('axios');
 const sharp = require('sharp');
+const fs = require('fs');
+const path = require('path');
+
+// Load font as base64 at startup for SVG embedding
+const fontPath = path.join(__dirname, 'fonts', 'Roboto-Regular.ttf');
+const FONT_BASE64 = fs.existsSync(fontPath) ? fs.readFileSync(fontPath).toString('base64') : null;
 
 const app = express();
 app.use(express.urlencoded({ extended: false }));
@@ -170,14 +176,18 @@ async function createBrandedImage(imageBuffer, captionText) {
     <text
       x="50"
       y="${SIZE - textAreaHeight + 20 + i * lineHeight}"
-      font-family="DejaVu Serif, Liberation Serif, serif"
+      font-family="Roboto, sans-serif"
       font-size="40"
       fill="white"
-      font-style="italic"
     >${escapeXml(line)}</text>`).join('');
+
+  const fontFace = FONT_BASE64
+    ? `@font-face { font-family: 'Roboto'; src: url('data:font/truetype;base64,${FONT_BASE64}'); }`
+    : '';
 
   const svgOverlay = `<svg width="${SIZE}" height="${SIZE}" xmlns="http://www.w3.org/2000/svg">
     <defs>
+      <style>${fontFace}</style>
       <linearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
         <stop offset="0%" stop-color="#000000" stop-opacity="0"/>
         <stop offset="60%" stop-color="#000000" stop-opacity="0.55"/>
@@ -189,11 +199,10 @@ async function createBrandedImage(imageBuffer, captionText) {
     <text
       x="50"
       y="${SIZE - 38}"
-      font-family="DejaVu Serif, Liberation Serif, serif"
-      font-size="30"
+      font-family="Roboto, sans-serif"
+      font-size="32"
       fill="#D4AF37"
       letter-spacing="5"
-      font-style="italic"
     >@lilamiami</text>
   </svg>`;
 
