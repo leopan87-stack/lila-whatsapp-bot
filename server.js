@@ -13,7 +13,7 @@ const { createCanvas, GlobalFonts } = require('@napi-rs/canvas');
 let fontsLoaded = false;
 try {
   GlobalFonts.registerFromPath(path.join(__dirname, 'fonts', 'Cinzel-Regular.ttf'), 'Cinzel');
-  GlobalFonts.registerFromPath(path.join(__dirname, 'fonts', 'BodoniModa-Regular.ttf'), 'Bodoni Moda');
+  GlobalFonts.registerFromPath(path.join(__dirname, 'fonts', 'BodoniModa_96pt-Bold.ttf'), 'Bodoni Moda');
   GlobalFonts.registerFromPath(path.join(__dirname, 'fonts', 'CormorantGaramond-Italic.ttf'), 'Cormorant Garamond');
   GlobalFonts.registerFromPath(path.join(__dirname, 'fonts', 'DMSerifDisplay-Italic.ttf'), 'DM Serif Display');
   GlobalFonts.registerFromPath(path.join(__dirname, 'fonts', 'PlayfairDisplay-Bold.ttf'), 'Playfair Display');
@@ -170,7 +170,7 @@ Transform this photo into an editorial Instagram image:
     ctx.fillRect(0, SIZE - 100, SIZE, 100);
 
     // Caption text
-    ctx.font = '700 84px "Bodoni Moda"';
+    ctx.font = '84px "Bodoni Moda"';
     ctx.fillStyle = GOLD;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
@@ -588,7 +588,7 @@ async function createBrandedImage(imageBuffer, captionText) {
       ctx.stroke();
       ctx.globalAlpha = 1;
 
-      ctx.font = '700 58px "Bodoni Moda"';
+      ctx.font = '58px "Bodoni Moda"';
       ctx.fillStyle = WHITE;
       ctx.shadowColor = 'rgba(0,0,0,0.6)';
       ctx.shadowBlur = 3;
@@ -787,7 +787,7 @@ async function createVideoTextOverlay(captionText) {
     ctx.fillRect(0, SIZE - 100, SIZE, 100);
 
     // Caption text
-    ctx.font = '700 84px "Bodoni Moda"';
+    ctx.font = '84px "Bodoni Moda"';
     ctx.fillStyle = GOLD;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
