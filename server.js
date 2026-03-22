@@ -190,8 +190,9 @@ Transform this photo into an editorial Instagram image:
   const composites = [{ input: textSvg, top: 0, left: 0 }];
   if (logoBuffer) {
     const logoMeta = await sharp(logoBuffer).metadata();
+    const logoW = logoMeta.width || 160;
     const logoH = logoMeta.height || 50;
-    composites.push({ input: logoBuffer, top: SIZE - logoH - 40, left: 40 });
+    composites.push({ input: logoBuffer, top: SIZE - logoH - 28, left: SIZE - logoW - 35 });
   }
   return await sharp(enhancedBuffer)
     .composite(composites)
@@ -472,15 +473,9 @@ function buildTaglineAndHandle(SIZE) {
   const tagX = (SIZE - tagW) / 2;
   const tagPath = fontTagline.getPath(tagText, {
     fontSize: 18, anchor: 'top left', x: tagX, y: SIZE - 46,
-    attributes: { fill: 'rgba(245,210,133,0.90)' },  // gold color
+    attributes: { fill: 'rgba(245,210,133,0.90)' },
   });
-  const lilaText = '@lilamiami';
-  const lilaW = fontTagline.getMetrics(lilaText, { fontSize: 18 }).width;
-  const lilaPath = fontTagline.getPath(lilaText, {
-    fontSize: 18, anchor: 'top left', x: SIZE - 60 - lilaW, y: SIZE - 46,
-    attributes: { fill: 'rgba(255,255,255,0.80)' },
-  });
-  return tagPath + lilaPath;
+  return tagPath;  // @lilamiami replaced by logo watermark (bottom right)
 }
 
 async function createBrandedImage(imageBuffer, captionText) {
