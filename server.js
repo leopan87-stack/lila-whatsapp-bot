@@ -15,7 +15,7 @@ let fontBold = null;     // Playfair Display Bold — big impact word
 let fontScript = null;   // Dancing Script Bold — accent/script word
 let fontTagline = null;  // Roboto — small tagline
 try {
-  fontItalic  = TextToSVG.loadSync(path.join(__dirname, 'node_modules/@fontsource/cormorant-garamond/files/cormorant-garamond-latin-400-italic.woff'));
+  fontItalic  = TextToSVG.loadSync(path.join(__dirname, 'fonts', 'CormorantGaramond-Italic.woff'));
   fontBold    = TextToSVG.loadSync(path.join(__dirname, 'fonts', 'PlayfairDisplay-Bold.ttf'));
   fontScript  = TextToSVG.loadSync(path.join(__dirname, 'fonts', 'DancingScript-Bold.ttf'));
   fontTagline = TextToSVG.loadSync(path.join(__dirname, 'fonts', 'Roboto-Regular.ttf'));
