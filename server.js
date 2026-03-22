@@ -310,10 +310,8 @@ async function handleWebsitePull(from) {
     lastCaption[from] = extractInstagramCaption(content);
     setState(from, 'waiting_for_approval');
 
-    await sendImageMessage(from, whatsappUrl, `💎 Here's today's post for *${product.title}*:`);
-    await new Promise(r => setTimeout(r, 2000));
+    await sendImageMessage(from, whatsappUrl, `What do you think, ${getName(from)}? 👆\n\n*YES* — post it to Instagram ✅\n*RECREATE* — try a different version 🔄\n*NO* — skip this one ❌`);
     for (const chunk of splitMessage(extractInstagramCaption(content))) await sendMessage(from, chunk);
-    await sendMessage(from, `What do you think, ${getName(from)}? 👆\n\n*YES* — post it to Instagram ✅\n*RECREATE* — try a different version 🔄\n*NO* — skip this one ❌`);
 
   } catch (err) {
     console.error('❌ Website pull error:', err.message);
@@ -736,15 +734,13 @@ async function processPhoto(from, mediaUrl, mediaContentType, caption) {
 
     setState(from, 'waiting_for_approval');
 
-    // Send branded image first, then delay so it delivers before text follows
-    await sendImageMessage(from, imageUrl, '💎 Here\'s your branded Instagram post:');
-    await new Promise(r => setTimeout(r, 2000));
+    // Image with approval prompt as caption — arrives together, guaranteed order
+    await sendImageMessage(from, imageUrl, `What do you think, ${getName(from)}? 👆\n\n*YES* — post it to Instagram ✅\n*RECREATE* — try a different version 🔄\n*NO* — skip this one ❌`);
 
-    // Send caption + hashtags only (no tip/timing — that's internal)
+    // Caption + hashtags sent after
     for (const chunk of splitMessage(extractInstagramCaption(content))) {
       await sendMessage(from, chunk);
     }
-    await sendMessage(from, `What do you think, ${getName(from)}? 👆\n\n*YES* — post it to Instagram ✅\n*RECREATE* — try a different version 🔄\n*NO* — skip this one ❌`);
 
   } catch (err) {
     console.error('❌ Error:', err.message);
@@ -830,10 +826,8 @@ app.post('/webhook', async (req, res) => {
         lastImageUrl[from] = igUrl;
         lastCaption[from] = extractInstagramCaption(content);
         setState(from, 'waiting_for_approval');
-        await sendImageMessage(from, whatsappUrl, `💎 Here's your post for *${product.title}*:`);
-        await new Promise(r => setTimeout(r, 2000));
+        await sendImageMessage(from, whatsappUrl, `What do you think, ${getName(from)}? 👆\n\n*YES* — post it to Instagram ✅\n*RECREATE* — try a different version 🔄\n*NO* — skip this one ❌`);
         for (const chunk of splitMessage(extractInstagramCaption(content))) await sendMessage(from, chunk);
-        await sendMessage(from, `What do you think, ${getName(from)}? 👆\n\n*YES* — post it to Instagram ✅\n*RECREATE* — try a different version 🔄\n*NO* — skip this one ❌`);
       } else {
         await sendMessage(from, `That product doesn't have an image in the store. Send me a photo and I'll use that! 📸`);
         setState(from, 'waiting_for_photo');
