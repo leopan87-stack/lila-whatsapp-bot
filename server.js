@@ -174,8 +174,8 @@ Transform this photo into an editorial Instagram image:
     ctx.fillStyle = GOLD;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    ctx.shadowColor = 'rgba(0,0,0,0.95)';
-    ctx.shadowBlur = 8;
+    ctx.shadowColor = 'rgba(0,0,0,0.6)';
+    ctx.shadowBlur = 3;
     ctx.shadowOffsetX = 1;
     ctx.shadowOffsetY = 2;
     captionLines.forEach((line, i) => {
@@ -570,8 +570,8 @@ async function createBrandedImage(imageBuffer, captionText) {
       ctx.fillStyle = GOLD;
       ctx.textAlign = 'left';
       ctx.textBaseline = 'top';
-      ctx.shadowColor = 'rgba(0,0,0,0.8)';
-      ctx.shadowBlur = 16;
+      ctx.shadowColor = 'rgba(0,0,0,0.6)';
+      ctx.shadowBlur = 3;
       ctx.shadowOffsetX = 1;
       ctx.shadowOffsetY = 2;
       ctx.fillText(impactWord, 55, 60);
@@ -590,8 +590,8 @@ async function createBrandedImage(imageBuffer, captionText) {
 
       ctx.font = '700 58px "Bodoni Moda"';
       ctx.fillStyle = WHITE;
-      ctx.shadowColor = 'rgba(0,0,0,0.8)';
-      ctx.shadowBlur = 16;
+      ctx.shadowColor = 'rgba(0,0,0,0.6)';
+      ctx.shadowBlur = 3;
       ctx.shadowOffsetX = 1;
       ctx.shadowOffsetY = 2;
       restLines.forEach((line, i) => {
@@ -630,8 +630,8 @@ async function createBrandedImage(imageBuffer, captionText) {
       ctx.fillStyle = GOLD;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
-      ctx.shadowColor = 'rgba(0,0,0,0.8)';
-      ctx.shadowBlur = 16;
+      ctx.shadowColor = 'rgba(0,0,0,0.6)';
+      ctx.shadowBlur = 3;
       ctx.shadowOffsetX = 1;
       ctx.shadowOffsetY = 2;
       scriptLines.forEach((line, i) => {
@@ -667,8 +667,8 @@ async function createBrandedImage(imageBuffer, captionText) {
       ctx.fillStyle = GOLD;
       ctx.textAlign = 'left';
       ctx.textBaseline = 'top';
-      ctx.shadowColor = 'rgba(0,0,0,0.8)';
-      ctx.shadowBlur = 16;
+      ctx.shadowColor = 'rgba(0,0,0,0.6)';
+      ctx.shadowBlur = 3;
       ctx.shadowOffsetX = 1;
       ctx.shadowOffsetY = 2;
       boldLines.forEach((line, i) => {
@@ -791,8 +791,8 @@ async function createVideoTextOverlay(captionText) {
     ctx.fillStyle = GOLD;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    ctx.shadowColor = 'rgba(0,0,0,0.95)';
-    ctx.shadowBlur = 8;
+    ctx.shadowColor = 'rgba(0,0,0,0.6)';
+    ctx.shadowBlur = 3;
     ctx.shadowOffsetX = 1;
     ctx.shadowOffsetY = 2;
     captionLines.forEach((line, i) => {
