@@ -30,13 +30,24 @@ const taglineTTS = fontTagline;
 
 const GOOGLE_AI_KEY = process.env.GOOGLE_AI_KEY;
 
-async function createBrandedImageAI(imageBuffer, captionText) {
+async function createBrandedImageAI(imageBuffer, captionText, withModel = false) {
   const SIZE = 1080;
   const GOLD = '#F5D285';
   const base64Image = imageBuffer.toString('base64');
 
-  // ── Step 1: Gemini enhances background + lighting ONLY (no text — we add that) ──
-  const bgPrompt = `You are a luxury photographer for Lila Miami, a jewelry brand in Miami.
+  // ── Step 1: Gemini enhances photo ──
+  const bgPrompt = withModel
+    ? `You are a luxury photographer for Lila Miami, a jewelry brand in Miami.
+Using this product photo as reference, create an editorial Instagram image featuring a woman wearing this exact jewelry piece:
+- The woman has medium-length dark hair tied back loosely, natural minimal makeup
+- Her expression is confident yet relaxed — a soft natural smile or neutral gaze
+- Her features are balanced and soft, with a natural look that doesn't rely on heavy styling
+- She looks like an everyday Miami woman — relatable, stylish, approachable, not a supermodel
+- The jewelry must be clearly visible, worn correctly on the right body part, and match EXACTLY the design, colors, and materials shown
+- Background: choose creatively to complement the jewelry's colors and mood — warm, editorial, luxurious
+- Lighting: warm and flattering, making the jewelry the clear star
+- Output: square 1:1 format, photorealistic, no text, no watermarks`
+    : `You are a luxury photographer for Lila Miami, a jewelry brand in Miami.
 Transform this photo into an editorial Instagram image:
 - If there is a person in the photo, keep them EXACTLY as-is — do NOT alter their face, body, skin, or appearance in any way
 - Keep the jewelry EXACTLY as-is — same shape, colors, materials, design — do NOT modify it
@@ -688,10 +699,12 @@ function splitMessage(text, maxLen = 1500) {
   return chunks;
 }
 
-async function processPhoto(from, mediaUrl, mediaContentType, caption) {
+async function processPhoto(from, mediaUrl, mediaContentType, caption, withModel = false) {
   if (processing.has(from)) return; // ignore duplicate webhook
   processing.add(from);
-  await sendMessage(from, `Perfect! Give me a moment while I create your post, ${getName(from)}... ✨`);
+  await sendMessage(from, withModel
+    ? `Love it! Generating your post with a model wearing it, ${getName(from)}... 👗✨`
+    : `Perfect! Give me a moment while I create your post, ${getName(from)}... ✨`);
 
   try {
     const { buffer, contentType } = await downloadImageBuffer(mediaUrl);
@@ -710,7 +723,7 @@ async function processPhoto(from, mediaUrl, mediaContentType, caption) {
     if (GOOGLE_AI_KEY) {
       try {
         console.log('🎨 Using Gemini AI image enhancement...');
-        brandedBuffer = await createBrandedImageAI(buffer, shortCaption);
+        brandedBuffer = await createBrandedImageAI(buffer, shortCaption, withModel);
         console.log('✅ Gemini image ready');
       } catch (aiErr) {
         console.error('⚠️ Gemini failed, falling back to sharp:', aiErr.message);
@@ -841,13 +854,27 @@ app.post('/webhook', async (req, res) => {
   if (currentState === 'waiting_for_keywords') {
     const keywords = body === 'skip' ? '' : rawBody;
     const pending = pendingPhoto[from];
-    delete pendingPhoto[from];
     if (pending) {
-      await processPhoto(from, pending.mediaUrl, pending.mediaContentType, keywords);
+      pendingPhoto[from] = { ...pending, keywords };
+      setState(from, 'waiting_for_model_choice');
+      await sendMessage(from, `Got it! 💎 One more thing — would you like me to add a model wearing the piece?\n\n*YES* — generate a model wearing it 👗\n*NO* — keep the product shot as-is 📸`);
     } else {
       setState(from, 'waiting_for_photo');
       await sendMessage(from, `Send me the photo first, ${getName(from)}! 📸`);
     }
+    return;
+  }
+
+  if (currentState === 'waiting_for_model_choice') {
+    const pending = pendingPhoto[from];
+    delete pendingPhoto[from];
+    if (!pending) {
+      setState(from, 'waiting_for_photo');
+      await sendMessage(from, `Send me the photo first, ${getName(from)}! 📸`);
+      return;
+    }
+    const withModel = ['yes', 'si', 'sí', 'yep', 'yeah', 'model'].some(w => body.includes(w));
+    await processPhoto(from, pending.mediaUrl, pending.mediaContentType, pending.keywords || '', withModel);
     return;
   }
 
