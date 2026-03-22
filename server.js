@@ -261,6 +261,23 @@ function getName(number) {
   return NAMES[number] || 'there';
 }
 
+// Best posting times based on Lila Miami Instagram Insights (2,620 followers)
+function getBestPostingTime() {
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const tips = {
+    0: { time: '12:00–3:00 PM', note: 'Sunday midday — your followers are relaxed and browsing' },
+    1: { time: '12:00–3:00 PM', note: 'Monday lunch — great start to the week, high activity' },
+    2: { time: '12:00 PM',      note: 'Tuesday is your #1 day — 863 active followers at noon' },
+    3: { time: '12:00–3:00 PM', note: 'Wednesday midday — consistent peak across all hours' },
+    4: { time: '12:00 PM',      note: 'Thursday is your #2 day — 853 active followers at noon' },
+    5: { time: '12:00–3:00 PM', note: 'Friday midday or 9 PM — strong activity both windows' },
+    6: { time: '12:00–3:00 PM', note: 'Saturday midday — followers are out but checking their phones' },
+  };
+  const day = new Date().getDay();
+  const t = tips[day];
+  return `⏰ *Best time to post today (${days[day]}):* ${t.time} ET\n_${t.note}_`;
+}
+
 const state = {};
 const lastContent = {};
 const lastImageUrl = {};
@@ -289,7 +306,7 @@ async function broadcastMorningPing() {
   for (const number of GROUP) {
     try {
       const name = getName(number);
-      const message = `Good morning, ${name}! ☀️ Ready to create today's Lila Miami post?\n\nSend me a product photo 📸 — or would you like me to pull a piece from your new arrivals on the website and post it for you? Just say *website*! 💎`;
+      const message = `Good morning, ${name}! ☀️ Ready to create today's Lila Miami post?\n\n${getBestPostingTime()}\n\nSend me a product photo 📸 — or would you like me to pull a piece from your new arrivals on the website and post it for you? Just say *website*! 💎`;
       await sendMessage(number, message);
       setState(number, 'waiting_for_photo');
       console.log(`✅ Pinged ${number}`);
@@ -920,7 +937,7 @@ app.post('/webhook', async (req, res) => {
       await sendMessage(from, `On it, ${getName(from)}! Posting to Instagram now... ⏳`);
       try {
         await postToInstagram(lastImageUrl[from], lastCaption[from]);
-        await sendMessage(from, `Done! 🎉 It's live on Instagram. Great content, ${getName(from)} — keep it up! 💎`);
+        await sendMessage(from, `Done! 🎉 It's live on Instagram. Great content, ${getName(from)} — keep it up! 💎\n\n${getBestPostingTime()}`);
       } catch (igErr) {
         console.error('❌ Instagram post failed:', igErr.response?.data || igErr.message);
         await sendMessage(from, `Hmm, Instagram didn't accept it this time. The image is saved so you can post it manually. Sorry about that! 🙏\n\nError: ` + (igErr.response?.data?.error?.message || igErr.message));
