@@ -288,28 +288,42 @@ async function postToInstagram(imageUrl, caption) {
   const igUserId = process.env.INSTAGRAM_USER_ID;
   const token = process.env.INSTAGRAM_ACCESS_TOKEN;
 
+  console.log(`📸 Posting to Instagram. Image URL: ${imageUrl}`);
+
   // Step 1: Create media container
   const container = await axios.post(
     `https://graph.instagram.com/v21.0/${igUserId}/media`,
-    { image_url: imageUrl, caption, access_token: token }
+    null,
+    {
+      params: {
+        image_url: imageUrl,
+        caption: caption,
+        media_type: 'IMAGE',
+        access_token: token,
+      }
+    }
   );
   const creationId = container.data.id;
+  console.log(`📦 Container created: ${creationId}`);
 
   // Step 2: Publish
   await axios.post(
     `https://graph.instagram.com/v21.0/${igUserId}/media_publish`,
-    { creation_id: creationId, access_token: token }
+    null,
+    { params: { creation_id: creationId, access_token: token } }
   );
   console.log('✅ Posted to Instagram:', creationId);
 }
 
 async function uploadToImgBB(imageBuffer) {
   const base64 = imageBuffer.toString('base64');
-  const params = new URLSearchParams({ key: process.env.IMGBB_API_KEY, image: base64 });
+  const params = new URLSearchParams({ key: process.env.IMGBB_API_KEY, image: base64, name: 'lila-post.jpg' });
   const response = await axios.post('https://api.imgbb.com/1/upload', params.toString(), {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
   });
-  return response.data.data.url;
+  const data = response.data.data;
+  console.log(`🖼️ ImgBB URL: ${data.url}`);
+  return data.url;
 }
 
 function extractInstagramCaption(fullContent) {
