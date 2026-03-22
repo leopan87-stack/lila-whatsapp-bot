@@ -15,7 +15,7 @@ let fontBold = null;     // Playfair Display Bold — big impact word
 let fontScript = null;   // Dancing Script Bold — accent/script word
 let fontTagline = null;  // Roboto — small tagline
 try {
-  fontItalic  = TextToSVG.loadSync(path.join(__dirname, 'fonts', 'BodoniModa-Italic.woff'));
+  fontItalic  = TextToSVG.loadSync(path.join(__dirname, 'fonts', 'BodoniModa-Italic-400.woff'));
   fontBold    = TextToSVG.loadSync(path.join(__dirname, 'fonts', 'PlayfairDisplay-Bold.ttf'));
   fontScript  = TextToSVG.loadSync(path.join(__dirname, 'fonts', 'DancingScript-Bold.ttf'));
   fontTagline = TextToSVG.loadSync(path.join(__dirname, 'fonts', 'Roboto-Regular.ttf'));
@@ -149,18 +149,18 @@ Transform this photo into an editorial Instagram image:
   else { clean = clean.substring(0, 55); const sp = clean.lastIndexOf(' '); if (sp > 15) clean = clean.substring(0, sp) + '...'; }
   console.log(`🖊️ Adding text overlay: "${clean}"`);
 
-  const captionLines = wrapText(clean, 22, 3);
-  const lineH = 72;
+  const captionLines = wrapText(clean, 20, 3);
+  const lineH = 88;
   // Caption at top — starts 50px from top
   const captionY = 50;
 
   let captionPaths = '';
   captionLines.forEach((line, i) => {
     if (!fontItalic) return;
-    const metrics = fontItalic.getMetrics(line, { fontSize: 72 });
+    const metrics = fontItalic.getMetrics(line, { fontSize: 84 });
     const x = (SIZE - metrics.width) / 2;
     captionPaths += fontItalic.getPath(line, {
-      fontSize: 72, anchor: 'top left', x, y: captionY + i * lineH,
+      fontSize: 84, anchor: 'top left', x, y: captionY + i * lineH,
       attributes: { fill: GOLD, filter: 'url(#ts)' },
     });
   });
