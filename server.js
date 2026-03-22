@@ -826,6 +826,24 @@ async function postVideoToInstagram(videoUrl, caption) {
   console.log('✅ Reel posted:', JSON.stringify(publishRes.data));
 }
 
+async function extractFirstFrame(videoBuffer) {
+  const tmpIn    = path.join(os.tmpdir(), `frame_in_${Date.now()}.mp4`);
+  const tmpFrame = path.join(os.tmpdir(), `frame_${Date.now()}.jpg`);
+  fs.writeFileSync(tmpIn, videoBuffer);
+  await new Promise((resolve, reject) => {
+    ffmpeg(tmpIn)
+      .outputOptions(['-vframes 1', '-q:v 2'])
+      .output(tmpFrame)
+      .on('end', resolve)
+      .on('error', reject)
+      .run();
+  });
+  const frameBuffer = fs.readFileSync(tmpFrame);
+  fs.unlinkSync(tmpIn);
+  fs.unlinkSync(tmpFrame);
+  return frameBuffer;
+}
+
 async function processVideo(from, mediaUrl, keywords) {
   if (processing.has(from)) return;
   processing.add(from);
@@ -833,8 +851,9 @@ async function processVideo(from, mediaUrl, keywords) {
   try {
     const { buffer } = await downloadImageBuffer(mediaUrl);
 
-    // Generate caption with Claude — describe as a video for a jewelry brand
-    const content = await generateContent(buffer.toString('base64'), 'image/jpeg', keywords + ' (this is a video post)');
+    // Extract first frame → send to Claude for caption generation
+    const frameBuffer = await extractFirstFrame(buffer);
+    const content = await generateContent(frameBuffer.toString('base64'), 'image/jpeg', keywords + ' (this is a video/Reel post for Instagram)');
     lastContent[from] = content;
     const shortCaption = extractCaption(content);
     const igCaption    = extractInstagramCaption(content);
