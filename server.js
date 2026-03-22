@@ -37,45 +37,16 @@ async function createBrandedImageAI(imageBuffer, captionText, withModel = false)
 
   // ── Step 1: Gemini enhances photo ──
   const bgPrompt = withModel
-    ? `You are generating a hyper-realistic photograph — not an illustration, not a render, not AI art. The result must be completely indistinguishable from a real photo taken on a camera.
-
-Using the product photo as reference, generate a portrait of a young woman wearing this exact jewelry piece.
-
-SUBJECT:
-- Hyper-realistic portrait, soft natural beauty, subtle asymmetry in facial structure
-- Relaxed expression with faint micro-smile, one eyebrow raised very slightly higher than the other
-- Slight shoulder shift, head tilted ~7 degrees off-center, natural neck tension — not posed
-- Skin: visible micro-texture, uneven pore density, faint peach fuzz, mild under-eye discoloration, tiny blemish near jawline, slight redness around nose crease
-- Eyes: natural sclera tone (not pure white), subtle vein detail, asymmetrical catchlight matching a single window light source, slightly uneven eyelid fold
-- Teeth (if visible): slight natural misalignment, subtle translucency on edges, very mild color variation — not pure white
-- Lips: natural lip lines, slightly uneven upper lip contour, faint dryness texture, soft pink with mild tonal variation
-- Medium-length dark hair loosely tied back, with natural fly-aways and real hair texture
-
-JEWELRY:
-- Must match EXACTLY the design, shape, colors, stones, and materials from the reference photo
-- Worn correctly on the right body part (bracelet on wrist, necklace at neck, earring at ear, etc.)
-- Clearly visible, well-lit, and the clear focal point of the image
-
-ENVIRONMENT:
-- Indoor setting near a window, real interior elements slightly out of focus in background
-- Single soft window light from the left side, realistic light falloff
-- Soft shadows under chin and nose, physically accurate catchlight in both eyes
-
-CAMERA SIMULATION:
-- Full-frame DSLR, 50mm f/1.8 lens, shot at f/2.2
-- Natural shallow depth of field, gradual focal falloff — nearest eye sharp, far eye slightly softer
-- Micro hand-held softness — not perfectly sharp
-- Subtle natural sensor grain, neutral tones with slight warmth, no oversaturation
-- Tiny skin specular highlights, mild exposure imbalance, slight chromatic aberration on hair edges
-
-STRICTLY AVOID:
-- Over-smoothed or plastic skin
-- Perfect facial symmetry
-- Overly bright white teeth
-- Flat studio lighting or extreme HDR
-- Any AI-generated look or render feel
-
-Output: square 1:1 format, ultra-photorealistic, no text, no watermarks`
+    ? `You are a professional photographer for Lila Miami, a luxury jewelry brand in Miami.
+Using the product photo as reference, generate a realistic photo of a Latina woman wearing this exact jewelry piece.
+- She is naturally beautiful, average everyday look — not a supermodel, not overdone
+- Latina features, warm skin tone, dark hair, natural makeup
+- Expression is relaxed and confident — real, not posed
+- The jewelry must match EXACTLY the design, colors, and materials from the reference photo, worn on the correct body part
+- Background is soft and complementary — warm, lifestyle, real environment
+- Lighting is natural and flattering
+- The photo must look real, not AI-generated
+- Output: square 1:1 format, photorealistic, no text, no watermarks`
     : `You are a luxury photographer for Lila Miami, a jewelry brand in Miami.
 Transform this photo into an editorial Instagram image:
 - If there is a person in the photo, keep them EXACTLY as-is — do NOT alter their face, body, skin, or appearance in any way
