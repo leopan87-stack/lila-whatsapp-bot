@@ -7,10 +7,16 @@ const axios = require('axios');
 const sharp = require('sharp');
 const fs = require('fs');
 const path = require('path');
+const { createCanvas, loadImage, GlobalFonts } = require('@napi-rs/canvas');
 
-// Load font as base64 at startup for SVG embedding
+// Register font at startup
 const fontPath = path.join(__dirname, 'fonts', 'Roboto-Regular.ttf');
-const FONT_BASE64 = fs.existsSync(fontPath) ? fs.readFileSync(fontPath).toString('base64') : null;
+if (fs.existsSync(fontPath)) {
+  GlobalFonts.registerFromPath(fontPath, 'Roboto');
+  console.log('✅ Font loaded');
+} else {
+  console.warn('⚠️ Font file not found');
+}
 
 const app = express();
 app.use(express.urlencoded({ extended: false }));
@@ -130,69 +136,63 @@ function stripEmojis(str) {
 
 async function createBrandedImage(imageBuffer, captionText) {
   const SIZE = 1080;
-  const GRAD_H = 380;
 
-  // 1. Resize to Instagram square
-  const resized = await sharp(imageBuffer)
+  // Resize source image to square using sharp
+  const resizedBuffer = await sharp(imageBuffer)
     .resize(SIZE, SIZE, { fit: 'cover', position: 'center' })
+    .jpeg()
     .toBuffer();
 
-  // 2. Clean caption text
-  const clean = stripEmojis(captionText).substring(0, 160);
+  // Load into canvas
+  const img = await loadImage(resizedBuffer);
+  const canvas = createCanvas(SIZE, SIZE);
+  const ctx = canvas.getContext('2d');
 
-  // 3. Dark gradient overlay (pure SVG, no text — this always works)
-  const gradientSvg = Buffer.from(
-    `<svg width="${SIZE}" height="${GRAD_H}" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#000000" stop-opacity="0"/>
-          <stop offset="100%" stop-color="#000000" stop-opacity="0.82"/>
-        </linearGradient>
-      </defs>
-      <rect width="${SIZE}" height="${GRAD_H}" fill="url(#g)"/>
-    </svg>`
-  );
+  // Draw photo
+  ctx.drawImage(img, 0, 0, SIZE, SIZE);
 
-  // 4. Caption text — sharp's native text input using font file directly
-  const captionImg = await sharp({
-    text: {
-      text: clean,
-      fontfile: fontPath,
-      rgba: true,
-      width: SIZE - 100,
-      dpi: 130,
-      wrap: 'word',
-    },
-  }).png().toBuffer();
+  // Dark gradient at bottom
+  const gradient = ctx.createLinearGradient(0, SIZE - 400, 0, SIZE);
+  gradient.addColorStop(0, 'rgba(0,0,0,0)');
+  gradient.addColorStop(1, 'rgba(0,0,0,0.85)');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, SIZE - 400, SIZE, 400);
 
-  const { height: captionH = 120 } = await sharp(captionImg).metadata();
+  // Caption text — word wrap
+  const clean = stripEmojis(captionText);
+  ctx.font = '38px Roboto';
+  ctx.fillStyle = 'white';
+  ctx.textBaseline = 'top';
 
-  // 5. @lilamiami watermark — rendered then tinted gold
-  const watermarkRaw = await sharp({
-    text: {
-      text: '@lilamiami',
-      fontfile: fontPath,
-      rgba: true,
-      dpi: 90,
-    },
-  }).png().toBuffer();
+  const words = clean.split(' ');
+  const lines = [];
+  let currentLine = '';
+  for (const word of words) {
+    const test = currentLine ? currentLine + ' ' + word : word;
+    if (ctx.measureText(test).width > SIZE - 100) {
+      if (currentLine) lines.push(currentLine);
+      currentLine = word;
+      if (lines.length >= 2) break;
+    } else {
+      currentLine = test;
+    }
+  }
+  if (currentLine && lines.length < 3) lines.push(currentLine);
 
-  const watermarkImg = await sharp(watermarkRaw)
-    .tint({ r: 212, g: 175, b: 55 })
-    .png()
-    .toBuffer();
+  const lineHeight = 52;
+  const totalH = lines.length * lineHeight;
+  let textY = SIZE - totalH - 70;
+  for (const line of lines) {
+    ctx.fillText(line, 50, textY);
+    textY += lineHeight;
+  }
 
-  // 6. Composite all layers
-  const branded = await sharp(resized)
-    .composite([
-      { input: gradientSvg, top: SIZE - GRAD_H, left: 0 },
-      { input: captionImg, top: SIZE - captionH - 90, left: 50 },
-      { input: watermarkImg, top: SIZE - 55, left: 50 },
-    ])
-    .jpeg({ quality: 92 })
-    .toBuffer();
+  // @lilamiami watermark in gold
+  ctx.font = '28px Roboto';
+  ctx.fillStyle = '#D4AF37';
+  ctx.fillText('@lilamiami', 50, SIZE - 48);
 
-  return branded;
+  return canvas.toBuffer('image/jpeg');
 }
 
 async function uploadToImgBB(imageBuffer) {
