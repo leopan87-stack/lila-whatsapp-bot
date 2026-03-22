@@ -311,6 +311,7 @@ async function handleWebsitePull(from) {
     setState(from, 'waiting_for_approval');
 
     await sendImageMessage(from, whatsappUrl, `💎 Here's today's post for *${product.title}*:`);
+    await new Promise(r => setTimeout(r, 2000));
     for (const chunk of splitMessage(content)) await sendMessage(from, chunk);
     await sendMessage(from, `What do you think, ${getName(from)}? 👆\n\n*YES* — post it to Instagram ✅\n*RECREATE* — try a different version 🔄\n*NO* — skip this one ❌`);
 
@@ -741,8 +742,9 @@ async function processPhoto(from, mediaUrl, mediaContentType, caption) {
 
     setState(from, 'waiting_for_approval');
 
-    // Send branded image
+    // Send branded image first, then delay so it delivers before text follows
     await sendImageMessage(from, imageUrl, '💎 Here\'s your branded Instagram post:');
+    await new Promise(r => setTimeout(r, 2000));
 
     // Send content split into chunks (Twilio 1600 char limit)
     for (const chunk of splitMessage(content)) {
@@ -833,6 +835,7 @@ app.post('/webhook', async (req, res) => {
         lastCaption[from] = extractInstagramCaption(content);
         setState(from, 'waiting_for_approval');
         await sendImageMessage(from, whatsappUrl, `💎 Here's your post for *${product.title}*:`);
+        await new Promise(r => setTimeout(r, 2000));
         for (const chunk of splitMessage(content)) await sendMessage(from, chunk);
         await sendMessage(from, `What do you think, ${getName(from)}? 👆\n\n*YES* — post it to Instagram ✅\n*RECREATE* — try a different version 🔄\n*NO* — skip this one ❌`);
       } else {
