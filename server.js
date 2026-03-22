@@ -1195,7 +1195,7 @@ app.post('/webhook', async (req, res) => {
       } else {
         pendingPhoto[from] = { ...pending, keywords };
         setState(from, 'waiting_for_model_choice');
-        await sendMessage(from, `Got it! 💎 One more thing — would you like me to add a model wearing the piece?\n\n*YES* — generate a model wearing it 👗\n*NO* — keep the product shot as-is 📸`);
+        await sendMessage(from, `Got it! 💎 One more thing — would you like me to add a model wearing the piece?\n\n*YES* — generate a model wearing it 👗\n*NO* — enhance with a luxury background 🌿✨`);
       }
     } else {
       setState(from, 'waiting_for_photo');
