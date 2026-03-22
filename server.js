@@ -168,12 +168,14 @@ async function createBrandedImage(imageBuffer, captionText) {
   ctx.fillStyle = 'white';
   ctx.textBaseline = 'top';
 
+  // Use character-count wrap (reliable even if measureText returns 0)
   const words = clean.split(' ');
   const lines = [];
   let currentLine = '';
+  const MAX_CHARS = 36;
   for (const word of words) {
     const test = currentLine ? currentLine + ' ' + word : word;
-    if (ctx.measureText(test).width > SIZE - 100) {
+    if (test.length > MAX_CHARS) {
       if (currentLine) lines.push(currentLine);
       currentLine = word;
       if (lines.length >= 2) break;
@@ -182,6 +184,7 @@ async function createBrandedImage(imageBuffer, captionText) {
     }
   }
   if (currentLine && lines.length < 3) lines.push(currentLine);
+  console.log(`📐 Lines to draw: ${JSON.stringify(lines)}`);
 
   const lineHeight = 52;
   const totalH = lines.length * lineHeight;
@@ -209,12 +212,16 @@ async function uploadToImgBB(imageBuffer) {
 }
 
 function extractCaption(fullContent) {
-  // Pull text between CAPTION section and the next section
-  const match = fullContent.match(/📝\s*CAPTION\s*\n([\s\S]*?)(?=\n#️⃣|\n⏰|\n💡|$)/i);
-  if (match) return match[1].trim();
-  // Fallback: first 2 sentences
-  const sentences = fullContent.split(/[.!?]/);
-  return sentences.slice(0, 2).join('. ').trim() + '.';
+  // Find CAPTION section — robust, works regardless of emoji variant
+  const match = fullContent.match(/CAPTION[^\n]*\n+([\s\S]*?)(?=\n\s*(?:HASHTAG|BEST TIME|QUICK TIP|#|⏰|💡)|$)/i);
+  if (match) {
+    const text = match[1].trim().replace(/[^\x20-\x7E\s]/g, '').trim();
+    // Take first 2 sentences max
+    const parts = text.split(/(?<=[.!?])\s+/);
+    return parts.slice(0, 2).join(' ').substring(0, 180).trim();
+  }
+  // Fallback: first 180 chars stripped of emojis
+  return fullContent.replace(/[^\x20-\x7E\s]/g, '').trim().substring(0, 180);
 }
 
 async function generateContent(imageBase64, imageContentType, userCaption) {
