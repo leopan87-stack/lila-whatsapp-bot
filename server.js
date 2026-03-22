@@ -131,9 +131,8 @@ Transform this photo into an editorial Instagram image:
 
   const captionLines = wrapText(clean, 22, 3);
   const lineH = 72;
-  const totalTextH = captionLines.length * lineH;
-  // Caption centered, sitting 120px above the tagline area
-  const captionY = SIZE - 140 - totalTextH;
+  // Caption at top — starts 50px from top
+  const captionY = 50;
 
   let captionPaths = '';
   captionLines.forEach((line, i) => {
@@ -150,15 +149,20 @@ Transform this photo into an editorial Instagram image:
 
   const textSvg = Buffer.from(`<svg width="${SIZE}" height="${SIZE}" xmlns="http://www.w3.org/2000/svg">
     <defs>
+      <linearGradient id="gt" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="black" stop-opacity="0.80"/>
+        <stop offset="100%" stop-color="black" stop-opacity="0"/>
+      </linearGradient>
       <linearGradient id="gb" x1="0" y1="0" x2="0" y2="1">
         <stop offset="0%" stop-color="black" stop-opacity="0"/>
-        <stop offset="100%" stop-color="black" stop-opacity="0.88"/>
+        <stop offset="100%" stop-color="black" stop-opacity="0.75"/>
       </linearGradient>
       <filter id="ts" x="-10%" y="-20%" width="130%" height="160%">
         <feDropShadow dx="0" dy="2" stdDeviation="5" flood-color="black" flood-opacity="0.9"/>
       </filter>
     </defs>
-    <rect x="0" y="${SIZE - 320}" width="${SIZE}" height="320" fill="url(#gb)"/>
+    <rect x="0" y="0" width="${SIZE}" height="260" fill="url(#gt)"/>
+    <rect x="0" y="${SIZE - 100}" width="${SIZE}" height="100" fill="url(#gb)"/>
     ${captionPaths}
     ${taglines}
   </svg>`);
