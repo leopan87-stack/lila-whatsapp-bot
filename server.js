@@ -196,7 +196,7 @@ app.get('/img/:id', (req, res) => {
 function storeImageForInstagram(buffer) {
   const id = Date.now().toString(36) + Math.random().toString(36).slice(2);
   imageStore.set(id, buffer);
-  setTimeout(() => imageStore.delete(id), 15 * 60 * 1000); // auto-cleanup after 15 min
+  setTimeout(() => imageStore.delete(id), 4 * 60 * 60 * 1000); // auto-cleanup after 4 hours (covers scheduled posts)
   const base = process.env.BASE_URL || 'https://lila-whatsapp-bot-production.up.railway.app';
   return `${base}/img/${id}`;
 }
