@@ -170,7 +170,7 @@ Transform this photo into an editorial Instagram image:
     ctx.fillRect(0, SIZE - 100, SIZE, 100);
 
     // Caption text
-    ctx.font = '119px "Bodoni Moda"';
+    ctx.font = '89px "Bodoni Moda"';
     ctx.fillStyle = GOLD;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
@@ -588,7 +588,7 @@ async function createBrandedImage(imageBuffer, captionText) {
       ctx.stroke();
       ctx.globalAlpha = 1;
 
-      ctx.font = '83px "Bodoni Moda"';
+      ctx.font = '62px "Bodoni Moda"';
       ctx.fillStyle = WHITE;
       ctx.shadowColor = 'rgba(0,0,0,0.6)';
       ctx.shadowBlur = 3;
@@ -787,7 +787,7 @@ async function createVideoTextOverlay(captionText) {
     ctx.fillRect(0, SIZE - 100, SIZE, 100);
 
     // Caption text
-    ctx.font = '119px "Bodoni Moda"';
+    ctx.font = '89px "Bodoni Moda"';
     ctx.fillStyle = GOLD;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
