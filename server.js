@@ -59,29 +59,32 @@ Transform this jewelry photo into an editorial Instagram image:
     const parts = response.data.candidates[0].content.parts;
     const imgPart = parts.find(p => p.inlineData);
     if (imgPart) {
+      // Use cover now — WE add text via SVG, so cropping Gemini's output is fine
       enhancedBuffer = await sharp(Buffer.from(imgPart.inlineData.data, 'base64'))
-        .resize(SIZE, SIZE, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 1 } })
+        .resize(SIZE, SIZE, { fit: 'cover', position: 'center' })
         .jpeg({ quality: 95 })
         .toBuffer();
       console.log('✅ Gemini enhanced background successfully');
     } else {
-      console.warn('⚠️ Gemini returned no image, using original');
+      const textPart = parts.find(p => p.text);
+      console.warn('⚠️ Gemini returned no image. Text response:', textPart?.text?.substring(0, 200));
     }
   } catch (e) {
-    console.warn('⚠️ Gemini failed:', e.message, '— using original photo');
+    console.warn('⚠️ Gemini failed:', e.response?.data?.error?.message || e.message);
   }
 
-  // Fallback: if Gemini failed, use the original photo with dark overlay
+  // Fallback: if Gemini failed, use the original photo — still gets our text overlay
   if (!enhancedBuffer) {
     enhancedBuffer = await sharp(imageBuffer)
-      .resize(SIZE, SIZE, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 1 } })
-      .modulate({ brightness: 0.85, saturation: 1.2 })
+      .resize(SIZE, SIZE, { fit: 'cover', position: 'center' })
+      .modulate({ brightness: 0.88, saturation: 1.15 })
       .jpeg({ quality: 95 })
       .toBuffer();
   }
 
   // ── Step 2: Our code adds text — 100% guaranteed, consistent every time ──
-  let clean = stripEmojis(captionText);
+  // Strip markdown formatting Claude may add (**bold**, *italic*, ## headings)
+  let clean = stripEmojis(captionText).replace(/\*\*/g, '').replace(/\*/g, '').replace(/#+\s*/g, '').trim();
   const dot = clean.search(/[.!?]/);
   if (dot > 10 && dot < 100) clean = clean.substring(0, dot + 1);
   else { clean = clean.substring(0, 55); const sp = clean.lastIndexOf(' '); if (sp > 15) clean = clean.substring(0, sp) + '...'; }
