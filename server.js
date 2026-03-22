@@ -12,6 +12,7 @@ const { createCanvas, GlobalFonts } = require('@napi-rs/canvas');
 
 let fontsLoaded = false;
 try {
+  GlobalFonts.registerFromPath(path.join(__dirname, 'fonts', 'CormorantGaramond-Italic.ttf'), 'Cormorant Garamond');
   GlobalFonts.registerFromPath(path.join(__dirname, 'fonts', 'DMSerifDisplay-Italic.ttf'), 'DM Serif Display');
   GlobalFonts.registerFromPath(path.join(__dirname, 'fonts', 'PlayfairDisplay-Bold.ttf'), 'Playfair Display');
   GlobalFonts.registerFromPath(path.join(__dirname, 'fonts', 'DancingScript-Bold.ttf'), 'Dancing Script');
@@ -167,7 +168,7 @@ Transform this photo into an editorial Instagram image:
     ctx.fillRect(0, SIZE - 100, SIZE, 100);
 
     // Caption text
-    ctx.font = 'italic 84px "DM Serif Display"';
+    ctx.font = 'italic 84px "Cormorant Garamond"';
     ctx.fillStyle = GOLD;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
@@ -585,7 +586,7 @@ async function createBrandedImage(imageBuffer, captionText) {
       ctx.stroke();
       ctx.globalAlpha = 1;
 
-      ctx.font = 'italic 58px "DM Serif Display"';
+      ctx.font = 'italic 58px "Cormorant Garamond"';
       ctx.fillStyle = WHITE;
       ctx.shadowColor = 'rgba(0,0,0,0.8)';
       ctx.shadowBlur = 16;
@@ -784,7 +785,7 @@ async function createVideoTextOverlay(captionText) {
     ctx.fillRect(0, SIZE - 100, SIZE, 100);
 
     // Caption text
-    ctx.font = 'italic 84px "DM Serif Display"';
+    ctx.font = 'italic 84px "Cormorant Garamond"';
     ctx.fillStyle = GOLD;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
