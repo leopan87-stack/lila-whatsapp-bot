@@ -136,7 +136,7 @@ async function broadcastMorningPing() {
   for (const number of GROUP) {
     try {
       const name = getName(number);
-      const message = `Good morning, ${name}! ☀️ Ready for today's Lila Miami post?\n\nJust send me a product photo and I'll take care of everything — branded image, caption, hashtags, and I'll post it straight to Instagram for you. 💎`;
+      const message = `Good morning, ${name}! ☀️ Ready for today's Lila Miami post?\n\nSend me a product photo 📸 or say *pull from website* and I'll automatically grab today's featured piece from the new collection and create the post for you. 💎`;
       await sendMessage(number, message);
       setState(number, 'waiting_for_photo');
       console.log(`✅ Pinged ${number}`);
@@ -150,30 +150,63 @@ cron.schedule('0 10 * * *', broadcastMorningPing, {
   timezone: 'America/New_York',
 });
 
+async function fetchNewCollection() {
+  const res = await axios.get(
+    'https://lilamiami.com/collections/new/products.json?limit=30',
+    { headers: { 'User-Agent': 'Mozilla/5.0' } }
+  );
+  return res.data.products || [];
+}
+
+function getTodayProduct(products) {
+  // Rotate through products — different one each day
+  const dayIndex = Math.floor(Date.now() / 86400000);
+  return products[dayIndex % products.length];
+}
+
 async function handleWebsitePull(from) {
-  await sendMessage(from, `On it, ${getName(from)}! Pulling the latest products from Lila Miami... 🛍️`);
+  await sendMessage(from, `On it, ${getName(from)}! Pulling today's product from the Lila Miami new collection... 🛍️`);
   try {
-    const shopToken = process.env.SHOPIFY_ACCESS_TOKEN;
-    const shopUrl = 'pvuczu-4z.myshopify.com';
-    const res = await axios.get(
-      `https://${shopUrl}/admin/api/2025-01/products.json?limit=5&status=active`,
-      { headers: { 'X-Shopify-Access-Token': shopToken } }
-    );
-    const products = res.data.products;
-    if (!products || products.length === 0) {
-      await sendMessage(from, `Hmm, couldn't find any products. Try again or send me a photo directly! 📸`);
+    const products = await fetchNewCollection();
+    if (!products.length) {
+      await sendMessage(from, `Hmm, couldn't reach the store right now. Send me a photo instead! 📸`);
       return;
     }
-    // Build product list message
-    const list = products.map((p, i) => `${i + 1}. ${p.title} — $${p.variants[0]?.price}`).join('\n');
-    await sendMessage(from, `Here are the latest Lila Miami products:\n\n${list}\n\nReply with the number to generate a post for that product!`);
 
-    // Store products for follow-up
-    pendingPhoto[from] = { shopifyProducts: products };
-    setState(from, 'waiting_for_product_pick');
+    const product = getTodayProduct(products);
+    const imageUrl = product.images?.[0]?.src;
+    if (!imageUrl) {
+      await sendMessage(from, `Today's product has no image. Send me a photo instead! 📸`);
+      return;
+    }
+
+    const keywords = `${product.title}. ${(product.body_html || '').replace(/<[^>]+>/g, '').substring(0, 200)}`;
+    await sendMessage(from, `Today's featured product: *${product.title}* 💎\n\nCreating your post now...`);
+
+    const imgRes = await axios.get(imageUrl, { responseType: 'arraybuffer' });
+    const buffer = Buffer.from(imgRes.data);
+    const base64 = buffer.toString('base64');
+    const content = await generateContent(base64, 'image/jpeg', keywords);
+    lastContent[from] = content;
+
+    const shortCaption = extractCaption(content);
+    let brandedBuffer;
+    try { brandedBuffer = await createBrandedImage(buffer, shortCaption); }
+    catch (e) { brandedBuffer = await sharp(buffer).resize(1080, 1080, { fit: 'cover' }).jpeg({ quality: 92 }).toBuffer(); }
+
+    const whatsappUrl = await uploadToImgBB(brandedBuffer);
+    const igUrl = storeImageForInstagram(brandedBuffer);
+    lastImageUrl[from] = igUrl;
+    lastCaption[from] = extractInstagramCaption(content);
+    setState(from, 'waiting_for_approval');
+
+    await sendImageMessage(from, whatsappUrl, `💎 Here's today's post for *${product.title}*:`);
+    for (const chunk of splitMessage(content)) await sendMessage(from, chunk);
+    await sendMessage(from, `What do you think, ${getName(from)}? 👆\n\n*YES* — post it to Instagram ✅\n*RECREATE* — try a different version 🔄\n*NO* — skip this one ❌`);
+
   } catch (err) {
-    console.error('❌ Shopify pull error:', err.message);
-    await sendMessage(from, `Couldn't reach the Lila Miami store right now. Send me a photo instead and I'll create the post! 📸`);
+    console.error('❌ Website pull error:', err.message);
+    await sendMessage(from, `Couldn't reach the store right now. Send me a photo instead! 📸`);
   }
 }
 
