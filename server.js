@@ -127,6 +127,16 @@ function escapeXml(str) {
     .replace(/'/g, '&apos;');
 }
 
+function stripEmojis(str) {
+  return str
+    .replace(/[\u{1F300}-\u{1FFFF}]/gu, '')
+    .replace(/[\u{2600}-\u{26FF}]/gu, '')
+    .replace(/[\u{2700}-\u{27BF}]/gu, '')
+    .replace(/[\u{FE00}-\u{FE0F}]/gu, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function wrapText(text, maxChars) {
   const words = text.split(' ');
   const lines = [];
@@ -151,8 +161,9 @@ async function createBrandedImage(imageBuffer, captionText) {
     .resize(SIZE, SIZE, { fit: 'cover', position: 'center' })
     .toBuffer();
 
-  // Wrap caption to max 3 lines
-  const lines = wrapText(captionText, 42).slice(0, 3);
+  // Strip emojis and wrap caption to max 3 lines
+  const cleanCaption = stripEmojis(captionText);
+  const lines = wrapText(cleanCaption, 42).slice(0, 3);
   const lineHeight = 54;
   const textAreaHeight = lines.length * lineHeight + 100;
   const gradientStart = SIZE - textAreaHeight - 40;
@@ -161,7 +172,7 @@ async function createBrandedImage(imageBuffer, captionText) {
     <text
       x="50"
       y="${SIZE - textAreaHeight + 20 + i * lineHeight}"
-      font-family="Georgia, Times New Roman, serif"
+      font-family="DejaVu Serif, Liberation Serif, serif"
       font-size="40"
       fill="white"
       font-style="italic"
@@ -180,7 +191,7 @@ async function createBrandedImage(imageBuffer, captionText) {
     <text
       x="50"
       y="${SIZE - 38}"
-      font-family="Georgia, Times New Roman, serif"
+      font-family="DejaVu Serif, Liberation Serif, serif"
       font-size="30"
       fill="#D4AF37"
       letter-spacing="5"
