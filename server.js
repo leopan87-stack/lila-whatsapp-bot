@@ -36,12 +36,12 @@ async function createBrandedImageAI(imageBuffer, captionText) {
   const base64Image = imageBuffer.toString('base64');
 
   // ── Step 1: Gemini enhances background + lighting ONLY (no text — we add that) ──
-  const bgPrompt = `You are a luxury product photographer for Lila Miami jewelry brand.
-Transform this jewelry photo into an editorial Instagram image:
-- Keep the jewelry item EXACTLY as-is — same shape, colors, materials, design — do NOT modify it
-- Replace the background creatively — choose a setting that complements the jewelry's colors, style, and mood
-- Enhance the lighting to make the jewelry glow and look luxurious
-- Keep the jewelry centered as the clear hero
+  const bgPrompt = `You are a luxury photographer for Lila Miami, a jewelry brand in Miami.
+Transform this photo into an editorial Instagram image:
+- If there is a person in the photo, keep them EXACTLY as-is — do NOT alter their face, body, skin, or appearance in any way
+- Keep the jewelry EXACTLY as-is — same shape, colors, materials, design — do NOT modify it
+- Replace or enhance the background creatively — choose a setting that complements the jewelry's colors, style, and mood
+- Enhance the lighting to make the jewelry glow and the overall image look luxurious and editorial
 - Output: square 1:1 format, photorealistic, no text, no watermarks`;
 
   let enhancedBuffer;
