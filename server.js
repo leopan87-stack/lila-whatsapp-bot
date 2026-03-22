@@ -10,16 +10,16 @@ const path = require('path');
 const Jimp = require('jimp');
 const TextToSVG = require('text-to-svg');
 
-let fontItalic = null;   // Playfair Display Italic — body text
+let fontItalic = null;   // Cormorant Garamond Italic — caption (matches website)
 let fontBold = null;     // Playfair Display Bold — big impact word
 let fontScript = null;   // Dancing Script Bold — accent/script word
 let fontTagline = null;  // Roboto — small tagline
 try {
-  fontItalic  = TextToSVG.loadSync(path.join(__dirname, 'fonts', 'PlayfairDisplay-Italic.ttf'));
+  fontItalic  = TextToSVG.loadSync(path.join(__dirname, 'node_modules/@fontsource/cormorant-garamond/files/cormorant-garamond-latin-400-italic.woff'));
   fontBold    = TextToSVG.loadSync(path.join(__dirname, 'fonts', 'PlayfairDisplay-Bold.ttf'));
   fontScript  = TextToSVG.loadSync(path.join(__dirname, 'fonts', 'DancingScript-Bold.ttf'));
   fontTagline = TextToSVG.loadSync(path.join(__dirname, 'fonts', 'Roboto-Regular.ttf'));
-  console.log('✅ Fonts loaded: Playfair Bold + Italic + Dancing Script + Roboto');
+  console.log('✅ Fonts loaded: Cormorant Garamond Italic + Playfair Bold + Dancing Script + Roboto');
 } catch (e) {
   console.warn('⚠️ Font load failed, will use bitmap fallback:', e.message);
 }
