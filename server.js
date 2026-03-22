@@ -39,8 +39,8 @@ async function createBrandedImageAI(imageBuffer, captionText) {
   const bgPrompt = `You are a luxury product photographer for Lila Miami jewelry brand.
 Transform this jewelry photo into an editorial Instagram image:
 - Keep the jewelry item EXACTLY as-is — same shape, colors, materials, design — do NOT modify it
-- Replace the background with dark black marble surface, moody and dramatic
-- Add warm golden rim lighting glowing softly around the jewelry
+- Replace the background creatively — choose a setting that complements the jewelry's colors, style, and mood
+- Enhance the lighting to make the jewelry glow and look luxurious
 - Keep the jewelry centered as the clear hero
 - Output: square 1:1 format, photorealistic, no text, no watermarks`;
 
