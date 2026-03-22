@@ -323,7 +323,7 @@ async function broadcastMorningPing() {
   for (const number of GROUP) {
     try {
       const name = getName(number);
-      const message = `Good morning, ${name}! ☀️ Ready to create today's Lila Miami post?\n\n${getBestPostingTime()}\n\nSend me a product photo 📸 — or would you like me to pull a piece from your new arrivals on the website and post it for you? Just say *website*! 💎`;
+      const message = `Good morning, ${name}! ☀️ Ready to create today's Lila Miami post?\n\n${getBestPostingTime()}\n\nCreate your post now and I'll automatically schedule it to go live at 12:00 PM — your peak time! 🕐\n\nSend me a product photo 📸 — or say *website* and I'll pull a piece from your new arrivals! 💎`;
       await sendMessage(number, message);
       setState(number, 'waiting_for_photo');
       console.log(`✅ Pinged ${number}`);
