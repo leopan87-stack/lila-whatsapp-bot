@@ -11,12 +11,8 @@ const { createCanvas, loadImage, GlobalFonts } = require('@napi-rs/canvas');
 
 // Register font at startup
 const fontPath = path.join(__dirname, 'fonts', 'Roboto-Regular.ttf');
-if (fs.existsSync(fontPath)) {
-  GlobalFonts.registerFromPath(fontPath, 'Roboto');
-  console.log('✅ Font loaded');
-} else {
-  console.warn('⚠️ Font file not found');
-}
+const FONT_NAME = fs.existsSync(fontPath) && GlobalFonts.registerFromPath(fontPath, 'Roboto') ? 'Roboto' : 'sans-serif';
+console.log(`✅ Using font: ${FONT_NAME}`);
 
 const app = express();
 app.use(express.urlencoded({ extended: false }));
@@ -80,6 +76,7 @@ const GROUP = [
 
 const state = {};
 const lastContent = {};
+const processing = new Set(); // deduplicate concurrent webhook calls
 
 function getState(number) {
   return state[number] || 'idle';
@@ -160,7 +157,7 @@ async function createBrandedImage(imageBuffer, captionText) {
 
   // Caption text — word wrap
   const clean = stripEmojis(captionText);
-  ctx.font = '38px Roboto';
+  ctx.font = `38px ${FONT_NAME}`;
   ctx.fillStyle = 'white';
   ctx.textBaseline = 'top';
 
@@ -188,7 +185,7 @@ async function createBrandedImage(imageBuffer, captionText) {
   }
 
   // @lilamiami watermark in gold
-  ctx.font = '28px Roboto';
+  ctx.font = `28px ${FONT_NAME}`;
   ctx.fillStyle = '#D4AF37';
   ctx.fillText('@lilamiami', 50, SIZE - 48);
 
@@ -257,6 +254,8 @@ One actionable tip to boost engagement for this specific photo (lighting, story 
 }
 
 async function processPhoto(from, mediaUrl, mediaContentType, caption) {
+  if (processing.has(from)) return; // ignore duplicate webhook
+  processing.add(from);
   await sendMessage(from, '📸 Got it! Creating your branded post... give me a sec ✨');
 
   try {
@@ -289,6 +288,8 @@ async function processPhoto(from, mediaUrl, mediaContentType, caption) {
     console.error('❌ Error generating content:', err.message);
     await sendMessage(from, 'Something went wrong. Try sending the photo again! 🙏');
     setState(from, 'waiting_for_photo');
+  } finally {
+    processing.delete(from);
   }
 }
 
