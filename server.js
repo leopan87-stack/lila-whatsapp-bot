@@ -791,8 +791,10 @@ app.post('/webhook', async (req, res) => {
       pendingPhoto[from] = { mediaUrl, mediaContentType };
       setState(from, 'waiting_for_keywords');
       await sendMessage(from, `Love it, ${getName(from)}! 💎 Before I create your post — any keywords or details you want me to highlight?\n\nExamples: "gift for mom", "gold bracelet", "new arrival", "summer vibes"\n\nOr just say *skip* to go straight to it!`);
+    } else if (['pull from website', 'pull website', 'website', 'new collection'].some(w => body.includes(w))) {
+      await handleWebsitePull(from);
     } else {
-      await sendMessage(from, `Go ahead and send me the photo, ${getName(from)}! 📸 I'll handle the rest.`);
+      await sendMessage(from, `Go ahead and send me the photo, ${getName(from)}! 📸\n\nOr say *website* and I'll pull the latest piece from the new collection automatically. 💎`);
     }
     return;
   }
