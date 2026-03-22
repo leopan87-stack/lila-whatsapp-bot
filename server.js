@@ -220,6 +220,16 @@ app.get('/test-ping', async (req, res) => {
   res.send('✅ Morning ping sent!');
 });
 
+app.get('/test-ffmpeg', (req, res) => {
+  const { execSync } = require('child_process');
+  try {
+    const v = execSync('ffmpeg -version 2>&1').toString().split('\n')[0];
+    res.json({ ok: true, version: v });
+  } catch (e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
 // In-memory media store — serves images & videos to Instagram
 const imageStore = new Map();
 app.get('/img/:id', (req, res) => {
@@ -878,8 +888,8 @@ async function processVideo(from, mediaUrl, keywords) {
     for (const chunk of splitMessage(igCaption)) await sendMessage(from, chunk);
 
   } catch (err) {
-    console.error('❌ Video error:', err.message);
-    await sendMessage(from, `Sorry ${getName(from)}, something went wrong with the video. Try again! 🙏`);
+    console.error('❌ Video error:', err.message, err.stack);
+    await sendMessage(from, `❌ Video error: ${err.message}`);
     setState(from, 'waiting_for_photo');
   } finally {
     processing.delete(from);
