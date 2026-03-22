@@ -32,22 +32,49 @@ const GOOGLE_AI_KEY = process.env.GOOGLE_AI_KEY;
 
 async function createBrandedImageAI(imageBuffer, captionText) {
   const base64Image = imageBuffer.toString('base64');
-  const prompt = `You are a luxury product photographer for Lila Miami, a high-end jewelry brand.
+  // Clean caption — first sentence, max 40 chars
+  let overlayCaption = stripEmojis(captionText);
+  const dotPos = overlayCaption.search(/[.!?]/);
+  if (dotPos > 8 && dotPos < 80) overlayCaption = overlayCaption.substring(0, dotPos + 1);
+  else { overlayCaption = overlayCaption.substring(0, 40); const sp = overlayCaption.lastIndexOf(' '); if (sp > 10) overlayCaption = overlayCaption.substring(0, sp) + '.'; }
 
-Enhance this product photo for Instagram. Follow these rules STRICTLY:
+  const prompt = `You are the creative director and graphic designer for Lila Miami, a luxury jewelry brand in Miami, Florida.
 
-CRITICAL — DO NOT ALTER THE JEWELRY:
-- The jewelry/gemstone item must appear EXACTLY as in the original photo — same shape, same colors, same details
-- Do NOT recreate, redraw, or modify the item in any way
-- Only enhance the background and lighting around it
+Your task is to output a single finished 1:1 square Instagram post image (1080x1080). Follow every step exactly.
 
-ENHANCEMENTS ONLY:
-- Replace or enhance the background: dark black marble surface, moody and dramatic
-- Add soft warm golden rim lighting to make the jewelry glow naturally
-- Keep the jewelry as the clear centered hero of the image
-- Leave the bottom 20% of the image as a dark area (we will add text separately)
+━━━ STEP 1: JEWELRY — DO NOT TOUCH ━━━
+• The jewelry item must remain EXACTLY as in the original photo
+• Same shape, same colors, same material, same design — pixel perfect
+• Do NOT redraw, recreate, or modify the item in any way
+• Only the background and lighting around it can change
 
-Output: square 1:1 format, photorealistic, luxury editorial style. NO TEXT in the image.`;
+━━━ STEP 2: BACKGROUND & LIGHTING ━━━
+• Replace/enhance the background: dark black marble surface, moody and dramatic
+• Add warm golden light glowing softly beneath and around the jewelry
+• Keep the jewelry centered as the clear hero of the image
+• The top 75% of the image is the photo — dramatic, editorial, luxury
+
+━━━ STEP 3: BOTTOM TEXT AREA (MANDATORY — always include this) ━━━
+• The bottom 25% of the image must have a smooth dark gradient overlay (black, 80% opacity) so text is clearly readable
+• In this dark area, add the following text exactly:
+
+  CENTER of bottom area — italic champagne/gold serif font (like Playfair Display), size ~52px:
+  "${overlayCaption}"
+
+  BOTTOM-LEFT corner, 30px from left edge, 30px from bottom — small white uppercase sans-serif, size ~18px, letter-spacing 2px:
+  "MIAMI'S EVERYDAY GOLD"
+
+  BOTTOM-RIGHT corner, 30px from right edge, 30px from bottom — small white sans-serif, size ~18px:
+  "@lilamiami"
+
+━━━ TEXT RULES ━━━
+• ALL 3 text elements are MANDATORY — never skip them
+• All text must be 100% inside the image frame — never clipped or cut off
+• Text must have enough contrast to be clearly readable on dark background
+• Add subtle text shadow if needed for readability
+
+Output: 1080x1080 square, photorealistic, luxury editorial, no watermarks, no extra decorations.`;
+
 
   const response = await axios.post(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${GOOGLE_AI_KEY}`,
@@ -66,14 +93,11 @@ Output: square 1:1 format, photorealistic, luxury editorial style. NO TEXT in th
   const imgPart = parts.find(p => p.inlineData);
   if (!imgPart) throw new Error('Gemini returned no image');
 
-  // Resize Gemini output to 1080x1080
-  const geminiBuffer = await sharp(Buffer.from(imgPart.inlineData.data, 'base64'))
+  // Resize to 1080x1080 and return — Gemini handles all text and styling
+  return await sharp(Buffer.from(imgPart.inlineData.data, 'base64'))
     .resize(1080, 1080, { fit: 'cover', position: 'center' })
     .jpeg({ quality: 95 })
     .toBuffer();
-
-  // Apply our reliable text overlay on top of Gemini's styled image
-  return await createBrandedImage(geminiBuffer, captionText);
 }
 
 const app = express();
