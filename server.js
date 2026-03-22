@@ -28,6 +28,46 @@ try {
 const captionTTS = fontItalic;
 const taglineTTS = fontTagline;
 
+const GOOGLE_AI_KEY = process.env.GOOGLE_AI_KEY;
+
+async function createBrandedImageAI(imageBuffer, captionText) {
+  const base64Image = imageBuffer.toString('base64');
+  const prompt = `You are the creative director for Lila Miami, a luxury jewelry brand based in Miami.
+
+Take this product photo and transform it into a stunning Instagram post:
+- Keep the actual jewelry product as the clear hero of the image
+- Enhance the background: dark, moody, dramatic — black marble, velvet, or deep dark surface
+- Improve lighting: add warm golden rim light on the jewelry to make it glow beautifully
+- Add elegant text overlay at the bottom in Playfair Display italic gold/champagne color: "${captionText}"
+- Add "@lilamiami" small elegant text bottom right corner in white
+- Add "MIAMI'S EVERYDAY GOLD" small uppercase text bottom left corner in white
+- Overall: luxury, editorial, high-end Miami jewelry brand aesthetic
+- Output: square 1:1 format, Instagram-ready, photorealistic`;
+
+  const response = await axios.post(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${GOOGLE_AI_KEY}`,
+    {
+      contents: [{
+        parts: [
+          { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
+          { text: prompt }
+        ]
+      }],
+      generationConfig: { responseModalities: ['IMAGE', 'TEXT'] }
+    }
+  );
+
+  const parts = response.data.candidates[0].content.parts;
+  const imgPart = parts.find(p => p.inlineData);
+  if (!imgPart) throw new Error('Gemini returned no image');
+
+  // Resize to exactly 1080x1080 for Instagram
+  return await sharp(Buffer.from(imgPart.inlineData.data, 'base64'))
+    .resize(1080, 1080, { fit: 'cover', position: 'center' })
+    .jpeg({ quality: 95 })
+    .toBuffer();
+}
+
 const app = express();
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
@@ -610,16 +650,19 @@ async function processPhoto(from, mediaUrl, mediaContentType, caption) {
     const shortCaption = extractCaption(content);
     console.log(`📝 Extracted caption: "${shortCaption.substring(0, 100)}..."`);
 
-    // Create branded image — fallback to plain resized if canvas fails
+    // Create branded image — try Gemini AI first, fall back to sharp/SVG
     let brandedBuffer;
-    try {
+    if (GOOGLE_AI_KEY) {
+      try {
+        console.log('🎨 Using Gemini AI image enhancement...');
+        brandedBuffer = await createBrandedImageAI(buffer, shortCaption);
+        console.log('✅ Gemini image ready');
+      } catch (aiErr) {
+        console.error('⚠️ Gemini failed, falling back to sharp:', aiErr.message);
+        brandedBuffer = await createBrandedImage(buffer, shortCaption);
+      }
+    } else {
       brandedBuffer = await createBrandedImage(buffer, shortCaption);
-    } catch (imgErr) {
-      console.error('⚠️ Canvas failed, using plain image:', imgErr.message);
-      brandedBuffer = await sharp(buffer)
-        .resize(1080, 1080, { fit: 'cover', position: 'center' })
-        .jpeg({ quality: 92 })
-        .toBuffer();
     }
 
     // Upload to ImgBB (for WhatsApp preview)
@@ -715,8 +758,13 @@ app.post('/webhook', async (req, res) => {
         lastContent[from] = content;
         const shortCaption = extractCaption(content);
         let brandedBuffer;
-        try { brandedBuffer = await createBrandedImage(buffer, shortCaption); }
-        catch (e) { brandedBuffer = await sharp(buffer).resize(1080,1080,{fit:'cover'}).jpeg({quality:92}).toBuffer(); }
+        if (GOOGLE_AI_KEY) {
+          try { brandedBuffer = await createBrandedImageAI(buffer, shortCaption); }
+          catch (e) { brandedBuffer = await createBrandedImage(buffer, shortCaption); }
+        } else {
+          try { brandedBuffer = await createBrandedImage(buffer, shortCaption); }
+          catch (e) { brandedBuffer = await sharp(buffer).resize(1080,1080,{fit:'cover'}).jpeg({quality:92}).toBuffer(); }
+        }
         const whatsappUrl = await uploadToImgBB(brandedBuffer);
         const igUrl = storeImageForInstagram(brandedBuffer);
         lastImageUrl[from] = igUrl;
