@@ -130,13 +130,34 @@ function stripEmojis(str) {
 async function createBrandedImage(imageBuffer, captionText) {
   const SIZE = 1080;
 
-  // Resize to square
+  // Resize + luxury jewelry photo edit
   const resizedBuffer = await sharp(imageBuffer)
     .resize(SIZE, SIZE, { fit: 'cover', position: 'center' })
+    .modulate({ brightness: 1.08, saturation: 1.35, hue: 8 }) // warm + vivid
+    .linear(1.15, -15)  // contrast boost
+    .sharpen({ sigma: 0.8 }) // crisp details
     .jpeg({ quality: 95 })
     .toBuffer();
 
-  const image = await Jimp.read(resizedBuffer);
+  // Add vignette (dark edges) using sharp composite
+  const vignetteSvg = Buffer.from(
+    `<svg width="${SIZE}" height="${SIZE}" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <radialGradient id="v" cx="50%" cy="50%" r="70%">
+          <stop offset="0%" stop-color="black" stop-opacity="0"/>
+          <stop offset="100%" stop-color="black" stop-opacity="0.45"/>
+        </radialGradient>
+      </defs>
+      <rect width="${SIZE}" height="${SIZE}" fill="url(#v)"/>
+    </svg>`
+  );
+
+  const vignetteBuffer = await sharp(resizedBuffer)
+    .composite([{ input: vignetteSvg, blend: 'multiply' }])
+    .jpeg({ quality: 95 })
+    .toBuffer();
+
+  const image = await Jimp.read(vignetteBuffer);
 
   // Dark gradient overlay at bottom
   const GRAD_START = SIZE - 420;
