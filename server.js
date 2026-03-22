@@ -155,13 +155,23 @@ async function createBrandedImage(imageBuffer, captionText) {
   const font32 = await Jimp.loadFont(Jimp.FONT_SANS_32_WHITE);
   const font16 = await Jimp.loadFont(Jimp.FONT_SANS_16_WHITE);
 
-  const clean = stripEmojis(captionText).substring(0, 180);
-  console.log(`🖊️ Drawing: "${clean.substring(0, 60)}..."`);
+  // Take only first complete sentence, max 80 chars
+  let clean = stripEmojis(captionText);
+  const sentenceEnd = clean.search(/[.!?]/);
+  if (sentenceEnd > 20 && sentenceEnd < 100) {
+    clean = clean.substring(0, sentenceEnd + 1);
+  } else {
+    // Hard cut at last space before 80 chars
+    clean = clean.substring(0, 85);
+    const lastSpace = clean.lastIndexOf(' ');
+    if (lastSpace > 40) clean = clean.substring(0, lastSpace) + '...';
+  }
+  console.log(`🖊️ Drawing: "${clean}"`);
 
   // Print caption
-  image.print(font32, 50, SIZE - 160, { text: clean, alignmentX: Jimp.HORIZONTAL_ALIGN_LEFT }, SIZE - 100, 110);
+  image.print(font32, 50, SIZE - 170, { text: clean, alignmentX: Jimp.HORIZONTAL_ALIGN_LEFT }, SIZE - 100, 130);
 
-  // Print @lilamiami
+  // Print @lilamiami in gold area
   image.print(font16, 50, SIZE - 38, '@lilamiami');
 
   return await image.getBufferAsync(Jimp.MIME_JPEG);
