@@ -15,11 +15,11 @@ let fontBold = null;     // Playfair Display Bold — big impact word
 let fontScript = null;   // Dancing Script Bold — accent/script word
 let fontTagline = null;  // Roboto — small tagline
 try {
-  fontItalic  = TextToSVG.loadSync(path.join(__dirname, 'fonts', 'DMSerifDisplay-Italic.woff'));
+  fontItalic  = TextToSVG.loadSync(path.join(__dirname, 'fonts', 'BodoniModa-Italic.woff'));
   fontBold    = TextToSVG.loadSync(path.join(__dirname, 'fonts', 'PlayfairDisplay-Bold.ttf'));
   fontScript  = TextToSVG.loadSync(path.join(__dirname, 'fonts', 'DancingScript-Bold.ttf'));
   fontTagline = TextToSVG.loadSync(path.join(__dirname, 'fonts', 'Roboto-Regular.ttf'));
-  console.log('✅ Fonts loaded: Cormorant Garamond Italic + Playfair Bold + Dancing Script + Roboto');
+  console.log('✅ Fonts loaded: Bodoni Moda Italic + Playfair Bold + Dancing Script + Roboto');
 } catch (e) {
   console.warn('⚠️ Font load failed, will use bitmap fallback:', e.message);
 }
@@ -158,7 +158,7 @@ Transform this photo into an editorial Instagram image:
         <stop offset="100%" stop-color="black" stop-opacity="0.75"/>
       </linearGradient>
       <filter id="ts" x="-10%" y="-20%" width="130%" height="160%">
-        <feDropShadow dx="0" dy="2" stdDeviation="5" flood-color="black" flood-opacity="0.9"/>
+        <feDropShadow dx="1" dy="2" stdDeviation="2" flood-color="black" flood-opacity="0.95"/>
       </filter>
     </defs>
     <rect x="0" y="0" width="${SIZE}" height="260" fill="url(#gt)"/>
@@ -169,7 +169,7 @@ Transform this photo into an editorial Instagram image:
 
   return await sharp(enhancedBuffer)
     .composite([{ input: textSvg, top: 0, left: 0 }])
-    .jpeg({ quality: 95 })
+    .jpeg({ quality: 100 })
     .toBuffer();
 }
 

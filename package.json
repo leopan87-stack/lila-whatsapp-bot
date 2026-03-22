@@ -8,7 +8,9 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
+    "@fontsource/bodoni-moda": "^5.2.7",
     "@fontsource/cormorant-garamond": "^5.2.11",
+    "@fontsource/dm-serif-display": "^5.2.8",
     "@google/generative-ai": "^0.24.1",
     "@napi-rs/canvas": "^0.1.97",
     "axios": "^1.6.0",
