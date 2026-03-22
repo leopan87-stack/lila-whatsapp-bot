@@ -98,6 +98,16 @@ const GROUP = [
   'whatsapp:+17864898034',
 ];
 
+const NAMES = {
+  'whatsapp:+13055049095': 'Leo',
+  'whatsapp:+17868438920': 'Dani',
+  'whatsapp:+17864898034': 'Maria',
+};
+
+function getName(number) {
+  return NAMES[number] || 'there';
+}
+
 const state = {};
 const lastContent = {};
 const lastImageUrl = {};
@@ -122,11 +132,10 @@ async function sendImageMessage(to, imageUrl, caption) {
 
 async function broadcastMorningPing() {
   console.log('📅 Sending morning ping to group...');
-  const message =
-    '✨ Good morning! Time for today\'s Lila Miami post 📸\n\n' +
-    'Send me a product photo and I\'ll create a branded Instagram image with caption, hashtags, and the best time to post!';
   for (const number of GROUP) {
     try {
+      const name = getName(number);
+      const message = `Good morning, ${name}! ☀️ Ready for today's Lila Miami post?\n\nJust send me a product photo and I'll take care of everything — branded image, caption, hashtags, and I'll post it straight to Instagram for you. 💎`;
       await sendMessage(number, message);
       setState(number, 'waiting_for_photo');
       console.log(`✅ Pinged ${number}`);
@@ -483,11 +492,11 @@ async function processPhoto(from, mediaUrl, mediaContentType, caption) {
     for (const chunk of splitMessage(content)) {
       await sendMessage(from, chunk);
     }
-    await sendMessage(from, '---\nReply *YES* to post to Instagram ✅  |  *RECREATE* 🔄  |  *NO* ❌');
+    await sendMessage(from, `What do you think, ${getName(from)}? 👆\n\n*YES* — post it to Instagram ✅\n*RECREATE* — try a different version 🔄\n*NO* — skip this one ❌`);
 
   } catch (err) {
     console.error('❌ Error:', err.message);
-    await sendMessage(from, 'Something went wrong. Try sending the photo again! 🙏');
+    await sendMessage(from, `Sorry ${getName(from)}, something went wrong. Try sending the photo again and I'll get it right! 🙏`);
     setState(from, 'waiting_for_photo');
   } finally {
     processing.delete(from);
@@ -520,7 +529,7 @@ app.post('/webhook', async (req, res) => {
 
   if (['hola', 'hello', 'hi', 'reset', 'start', 'menu'].includes(body)) {
     setState(from, 'waiting_for_photo');
-    await sendMessage(from, '👋 Hi! Send me a Lila Miami product photo and I\'ll create your branded Instagram post! 📸');
+    await sendMessage(from, `Hi ${getName(from)}! 👋 Send me a Lila Miami product photo and I'll create a branded post ready for Instagram. 💎`);
     return;
   }
 
@@ -528,7 +537,7 @@ app.post('/webhook', async (req, res) => {
     if (numMedia > 0 && mediaUrl) {
       await processPhoto(from, mediaUrl, mediaContentType, rawBody);
     } else {
-      await sendMessage(from, '📷 Please send a photo! I need to see the product to create the post.');
+      await sendMessage(from, `Go ahead and send me the photo, ${getName(from)}! 📸 I'll handle the rest.`);
     }
     return;
   }
@@ -540,24 +549,24 @@ app.post('/webhook', async (req, res) => {
 
     if (isYes) {
       setState(from, 'idle');
-      await sendMessage(from, '⏳ Posting to Instagram...');
+      await sendMessage(from, `On it, ${getName(from)}! Posting to Instagram now... ⏳`);
       try {
         await postToInstagram(lastImageUrl[from], lastCaption[from]);
-        await sendMessage(from, '✅ Posted to Instagram! Check @pinestateautomation 🚀\n\n💎 Consistency is everything — keep posting!');
+        await sendMessage(from, `Done! 🎉 It's live on Instagram. Great content, ${getName(from)} — keep it up! 💎`);
       } catch (igErr) {
         console.error('❌ Instagram post failed:', igErr.response?.data || igErr.message);
-        await sendMessage(from, '⚠️ Instagram post failed. Image is saved — you can post manually.\n\nError: ' + (igErr.response?.data?.error?.message || igErr.message));
+        await sendMessage(from, `Hmm, Instagram didn't accept it this time. The image is saved so you can post it manually. Sorry about that! 🙏\n\nError: ` + (igErr.response?.data?.error?.message || igErr.message));
       }
     } else if (isRecreate) {
       setState(from, 'waiting_for_photo');
-      await sendMessage(from, '🔄 Got it! Resend the photo and I\'ll create a completely different version 📸');
+      await sendMessage(from, `No problem, ${getName(from)}! Send me the photo again and I'll come up with a completely different look. 🔄`);
     } else if (isNo) {
       setState(from, 'idle');
-      await sendMessage(from, 'No problem! Whenever you\'re ready, just send a photo 📸');
+      await sendMessage(from, `Got it! Whenever you're ready for the next one, just send me a photo. 📸`);
     } else if (numMedia > 0 && mediaUrl) {
       await processPhoto(from, mediaUrl, mediaContentType, rawBody);
     } else {
-      await sendMessage(from, 'Reply *YES* to confirm ✅, *RECREATE* for a new version 🔄, or *NO* to cancel ❌');
+      await sendMessage(from, `Just reply *YES* to post it, *RECREATE* for a new version, or *NO* to skip. 😊`);
     }
     return;
   }
@@ -568,7 +577,7 @@ app.post('/webhook', async (req, res) => {
     await processPhoto(from, mediaUrl, mediaContentType, rawBody);
   } else {
     setState(from, 'waiting_for_photo');
-    await sendMessage(from, '👋 Hi! Send me a Lila Miami product photo and I\'ll create your branded Instagram post! 📸');
+    await sendMessage(from, `Hi ${getName(from)}! 👋 Send me a Lila Miami product photo and I'll create a branded post ready for Instagram. 💎`);
   }
 });
 
