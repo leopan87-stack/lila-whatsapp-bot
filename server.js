@@ -220,22 +220,27 @@ app.get('/test-ping', async (req, res) => {
   res.send('✅ Morning ping sent!');
 });
 
-// In-memory image store — serves images to Instagram (ImgBB blocks IG crawlers)
+// In-memory media store — serves images & videos to Instagram
 const imageStore = new Map();
 app.get('/img/:id', (req, res) => {
-  const buf = imageStore.get(req.params.id);
-  if (!buf) return res.status(404).send('Not found');
-  res.set('Content-Type', 'image/jpeg');
+  const item = imageStore.get(req.params.id);
+  if (!item) return res.status(404).send('Not found');
+  const { buf, contentType } = typeof item === 'object' && item.buf ? item : { buf: item, contentType: 'image/jpeg' };
+  res.set('Content-Type', contentType);
   res.set('Cache-Control', 'public, max-age=600');
   res.send(buf);
 });
 
-function storeImageForInstagram(buffer) {
+function storeMediaForInstagram(buffer, contentType = 'image/jpeg') {
   const id = Date.now().toString(36) + Math.random().toString(36).slice(2);
-  imageStore.set(id, buffer);
-  setTimeout(() => imageStore.delete(id), 4 * 60 * 60 * 1000); // auto-cleanup after 4 hours (covers scheduled posts)
+  imageStore.set(id, { buf: buffer, contentType });
+  setTimeout(() => imageStore.delete(id), 4 * 60 * 60 * 1000);
   const base = process.env.BASE_URL || 'https://lila-whatsapp-bot-production.up.railway.app';
   return `${base}/img/${id}`;
+}
+
+function storeImageForInstagram(buffer) {
+  return storeMediaForInstagram(buffer, 'image/jpeg');
 }
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -335,6 +340,7 @@ const state = {};
 const lastContent = {};
 const lastImageUrl = {};
 const lastCaption = {};
+const lastMediaType = {};  // 'image' or 'video'
 const pendingPhoto = {}; // stores photo info while waiting for keywords
 const processing = new Set(); // deduplicate concurrent webhook calls
 const scheduledPosts = {}; // stores setTimeout references for cancellation
@@ -724,6 +730,143 @@ async function uploadToImgBB(imageBuffer) {
   return data.url;
 }
 
+// ── Video editing via FFmpeg ──────────────────────────────────────────────────
+const ffmpeg = require('fluent-ffmpeg');
+const os = require('os');
+
+async function editVideo(videoBuffer, captionText) {
+  const tmpIn  = path.join(os.tmpdir(), `lila_in_${Date.now()}.mp4`);
+  const tmpOut = path.join(os.tmpdir(), `lila_out_${Date.now()}.mp4`);
+
+  fs.writeFileSync(tmpIn, videoBuffer);
+
+  // Clean caption for FFmpeg drawtext (escape special chars)
+  let clean = stripEmojis(captionText).replace(/\*\*/g,'').replace(/\*/g,'').replace(/#+\s*/g,'').trim();
+  const dot = clean.search(/[.!?]/);
+  if (dot > 10 && dot < 100) clean = clean.substring(0, dot + 1);
+  else { clean = clean.substring(0, 50); const sp = clean.lastIndexOf(' '); if (sp > 15) clean = clean.substring(0, sp); }
+  // FFmpeg drawtext escaping: ' → '\'' and : → \:
+  const ffCaption  = clean.replace(/'/g, "\u2019").replace(/:/g, '\\:');
+  const ffTagline  = "MIAMI'S EVERYDAY GOLD".replace(/'/g, "\u2019");
+
+  const fontCaption = path.join(__dirname, 'fonts', 'PlayfairDisplay-Italic.ttf');
+  const fontTagline = path.join(__dirname, 'fonts', 'Roboto-Regular.ttf');
+  const logoFile    = path.join(__dirname, 'logo.png');
+  const hasLogo     = fs.existsSync(logoFile);
+
+  // Build filter graph
+  const baseFilters = [
+    'scale=1080:1080:force_original_aspect_ratio=increase',
+    'crop=1080:1080',
+    'eq=saturation=1.12:brightness=0.03:contrast=1.04',
+    // Top caption — gold italic
+    `drawtext=fontfile='${fontCaption}':text='${ffCaption}':fontsize=82:fontcolor=0xF5D285:x=(w-text_w)/2:y=50:shadowx=1:shadowy=2:shadowcolor=0x000000@0.9`,
+    // Bottom tagline — gold centered
+    `drawtext=fontfile='${fontTagline}':text='${ffTagline}':fontsize=18:fontcolor=0xF5D285E6:x=(w-text_w)/2:y=h-46`,
+  ].join(',');
+
+  await new Promise((resolve, reject) => {
+    let cmd = ffmpeg(tmpIn);
+
+    if (hasLogo) {
+      cmd = cmd.input(logoFile)
+        .complexFilter(
+          `[0:v]${baseFilters}[base];[base][1:v]overlay=W-w-35:H-h-28[out]`,
+          'out'
+        );
+    } else {
+      cmd = cmd.videoFilters(baseFilters);
+    }
+
+    cmd
+      .outputOptions(['-c:v libx264', '-crf 23', '-preset fast', '-c:a aac', '-movflags +faststart'])
+      .output(tmpOut)
+      .on('end', resolve)
+      .on('error', (err) => { console.error('FFmpeg error:', err.message); reject(err); })
+      .run();
+  });
+
+  const outBuffer = fs.readFileSync(tmpOut);
+  fs.unlinkSync(tmpIn);
+  fs.unlinkSync(tmpOut);
+  console.log(`✅ Video edited: ${outBuffer.length} bytes`);
+  return outBuffer;
+}
+
+async function postVideoToInstagram(videoUrl, caption) {
+  const igUserId = process.env.INSTAGRAM_USER_ID;
+  const token    = process.env.INSTAGRAM_ACCESS_TOKEN;
+  console.log(`🎬 Posting video to Instagram. URL: ${videoUrl}`);
+
+  // Step 1: Create Reel container
+  const containerRes = await axios.post(
+    `https://graph.instagram.com/v21.0/${igUserId}/media`, null,
+    { params: { video_url: videoUrl, media_type: 'REELS', caption, access_token: token } }
+  );
+  const creationId = containerRes.data.id;
+  if (!creationId) throw new Error('No container ID: ' + JSON.stringify(containerRes.data));
+  console.log(`📦 Reel container: ${creationId}`);
+
+  // Step 2: Poll until ready (video encoding takes longer than image)
+  for (let i = 0; i < 12; i++) {
+    await new Promise(r => setTimeout(r, 5000));
+    const status = await axios.get(`https://graph.instagram.com/v21.0/${creationId}`, {
+      params: { fields: 'status_code', access_token: token }
+    });
+    console.log(`📊 Reel status: ${status.data.status_code}`);
+    if (status.data.status_code === 'FINISHED') break;
+    if (status.data.status_code === 'ERROR') throw new Error('Instagram video processing failed');
+  }
+
+  // Step 3: Publish
+  const publishRes = await axios.post(
+    `https://graph.instagram.com/v21.0/${igUserId}/media_publish`, null,
+    { params: { creation_id: creationId, access_token: token } }
+  );
+  console.log('✅ Reel posted:', JSON.stringify(publishRes.data));
+}
+
+async function processVideo(from, mediaUrl, keywords) {
+  if (processing.has(from)) return;
+  processing.add(from);
+  await sendMessage(from, `On it, ${getName(from)}! Editing your video... 🎬✨`);
+  try {
+    const { buffer } = await downloadImageBuffer(mediaUrl);
+
+    // Generate caption with Claude — describe as a video for a jewelry brand
+    const content = await generateContent(buffer.toString('base64'), 'image/jpeg', keywords + ' (this is a video post)');
+    lastContent[from] = content;
+    const shortCaption = extractCaption(content);
+    const igCaption    = extractInstagramCaption(content);
+    lastCaption[from]  = igCaption;
+
+    // Edit video with FFmpeg
+    const editedBuffer = await editVideo(buffer, shortCaption);
+
+    // Store for Instagram (serve from Railway)
+    const igVideoUrl = storeMediaForInstagram(editedBuffer, 'video/mp4');
+    lastImageUrl[from] = igVideoUrl;
+    lastMediaType[from] = 'video';
+
+    setState(from, 'waiting_for_approval');
+    // Send video preview via WhatsApp
+    await twilioClient.messages.create({
+      from: FROM_NUMBER,
+      to: from,
+      body: `What do you think, ${getName(from)}? 🎬\n\n*YES* — post it to Instagram ✅\n*RECREATE* — try again 🔄\n*NO* — skip ❌`,
+      mediaUrl: [igVideoUrl],
+    });
+    for (const chunk of splitMessage(igCaption)) await sendMessage(from, chunk);
+
+  } catch (err) {
+    console.error('❌ Video error:', err.message);
+    await sendMessage(from, `Sorry ${getName(from)}, something went wrong with the video. Try again! 🙏`);
+    setState(from, 'waiting_for_photo');
+  } finally {
+    processing.delete(from);
+  }
+}
+
 function extractInstagramCaption(fullContent) {
   // Caption text only
   const captionMatch = fullContent.match(/CAPTION[^\n]*\n+([\s\S]*?)(?=\n\s*(?:HASHTAG|BEST TIME|QUICK TIP|#️⃣|⏰|💡)|$)/i);
@@ -839,6 +982,7 @@ async function processPhoto(from, mediaUrl, mediaContentType, caption, withModel
     // Store in memory for Instagram (ImgBB blocked by IG crawlers)
     const igImageUrl = storeImageForInstagram(brandedBuffer);
     lastImageUrl[from] = igImageUrl;
+    lastMediaType[from] = 'image';
     console.log(`📸 Instagram URL: ${igImageUrl}`);
 
     // Extract full caption + hashtags for Instagram post
@@ -896,15 +1040,18 @@ app.post('/webhook', async (req, res) => {
 
   if (currentState === 'waiting_for_photo') {
     if (numMedia > 0 && mediaUrl) {
-      // Cancel any scheduled post if a new photo comes in
+      // Cancel any scheduled post if a new photo/video comes in
       if (scheduledPosts[from]) {
         clearTimeout(scheduledPosts[from]);
         delete scheduledPosts[from];
-        await sendMessage(from, `Got it — I cancelled the scheduled post and I'll use this new photo instead! 🔄`);
+        await sendMessage(from, `Got it — I cancelled the scheduled post and I'll use this new one instead! 🔄`);
       }
-      pendingPhoto[from] = { mediaUrl, mediaContentType };
+      const isVideo = mediaContentType.startsWith('video/');
+      pendingPhoto[from] = { mediaUrl, mediaContentType, isVideo };
       setState(from, 'waiting_for_keywords');
-      await sendMessage(from, `Love it, ${getName(from)}! 💎 Before I create your post — any keywords or details you want me to highlight?\n\nExamples: "gift for mom", "gold bracelet", "new arrival", "summer vibes"\n\nOr just say *skip* to go straight to it!`);
+      await sendMessage(from, isVideo
+        ? `Love it, ${getName(from)}! 🎬 Any keywords or details for the caption?\n\nExamples: "new arrival", "gold bracelet", "summer vibes"\n\nOr say *skip* to go straight to it!`
+        : `Love it, ${getName(from)}! 💎 Before I create your post — any keywords or details you want me to highlight?\n\nExamples: "gift for mom", "gold bracelet", "new arrival", "summer vibes"\n\nOr just say *skip* to go straight to it!`);
     } else if (['pull from website', 'pull website', 'website', 'new collection'].some(w => body.includes(w))) {
       await handleWebsitePull(from);
     } else {
@@ -960,9 +1107,15 @@ app.post('/webhook', async (req, res) => {
     const keywords = body === 'skip' ? '' : rawBody;
     const pending = pendingPhoto[from];
     if (pending) {
-      pendingPhoto[from] = { ...pending, keywords };
-      setState(from, 'waiting_for_model_choice');
-      await sendMessage(from, `Got it! 💎 One more thing — would you like me to add a model wearing the piece?\n\n*YES* — generate a model wearing it 👗\n*NO* — keep the product shot as-is 📸`);
+      if (pending.isVideo) {
+        // Videos skip model choice — go straight to processing
+        delete pendingPhoto[from];
+        await processVideo(from, pending.mediaUrl, keywords);
+      } else {
+        pendingPhoto[from] = { ...pending, keywords };
+        setState(from, 'waiting_for_model_choice');
+        await sendMessage(from, `Got it! 💎 One more thing — would you like me to add a model wearing the piece?\n\n*YES* — generate a model wearing it 👗\n*NO* — keep the product shot as-is 📸`);
+      }
     } else {
       setState(from, 'waiting_for_photo');
       await sendMessage(from, `Send me the photo first, ${getName(from)}! 📸`);
@@ -991,32 +1144,33 @@ app.post('/webhook', async (req, res) => {
     if (isYes) {
       setState(from, 'idle');
       const delay = getMsUntilNoonET();
-      const imageUrl = lastImageUrl[from];
+      const mediaUrl2 = lastImageUrl[from];
       const caption = lastCaption[from];
       const name = getName(from);
+      const isVideoPost = lastMediaType[from] === 'video';
+      const poster = isVideoPost ? postVideoToInstagram : postToInstagram;
 
       if (delay > 0) {
         const minutesLeft = Math.round(delay / 60000);
-        await sendMessage(from, `Perfect, ${name}! 🕐 Post is ready and scheduled for *12:00 PM ET* — your peak time.\n\nI'll publish it automatically in ${minutesLeft} minutes. You're all set! 💎`);
+        await sendMessage(from, `Perfect, ${name}! 🕐 ${isVideoPost ? 'Reel' : 'Post'} is ready and scheduled for *12:00 PM ET* — your peak time.\n\nI'll publish it automatically in ${minutesLeft} minutes. You're all set! 💎`);
         scheduledPosts[from] = setTimeout(async () => {
           delete scheduledPosts[from];
           try {
-            await postToInstagram(imageUrl, caption);
-            await sendMessage(from, `🎉 It's live! Your post just went up on Instagram at peak time. Great work, ${name}! 💎`);
+            await poster(mediaUrl2, caption);
+            await sendMessage(from, `🎉 It's live! Your ${isVideoPost ? 'Reel' : 'post'} just went up on Instagram at peak time. Great work, ${name}! 💎`);
           } catch (igErr) {
             console.error('❌ Scheduled Instagram post failed:', igErr.response?.data || igErr.message);
             await sendMessage(from, `⚠️ Scheduled post failed at 12 PM. You can post it manually. Sorry! Error: ` + (igErr.response?.data?.error?.message || igErr.message));
           }
         }, delay);
       } else {
-        // Already at or past noon — post immediately
         await sendMessage(from, `On it, ${name}! Posting to Instagram now... ⏳`);
         try {
-          await postToInstagram(imageUrl, caption);
+          await poster(mediaUrl2, caption);
           await sendMessage(from, `Done! 🎉 It's live on Instagram. Great content, ${name} — keep it up! 💎\n\n${getBestPostingTime()}`);
         } catch (igErr) {
           console.error('❌ Instagram post failed:', igErr.response?.data || igErr.message);
-          await sendMessage(from, `Hmm, Instagram didn't accept it this time. The image is saved so you can post it manually. Sorry about that! 🙏\n\nError: ` + (igErr.response?.data?.error?.message || igErr.message));
+          await sendMessage(from, `Hmm, Instagram didn't accept it this time. Sorry about that! 🙏\n\nError: ` + (igErr.response?.data?.error?.message || igErr.message));
         }
       }
     } else if (isRecreate) {
@@ -1035,15 +1189,17 @@ app.post('/webhook', async (req, res) => {
 
   // IDLE
   if (numMedia > 0 && mediaUrl) {
-    // Cancel any scheduled post if a new photo comes in
     if (scheduledPosts[from]) {
       clearTimeout(scheduledPosts[from]);
       delete scheduledPosts[from];
-      await sendMessage(from, `Got it — I cancelled the scheduled post and I'll use this new photo instead! 🔄`);
+      await sendMessage(from, `Got it — I cancelled the scheduled post and I'll use this new one instead! 🔄`);
     }
-    pendingPhoto[from] = { mediaUrl, mediaContentType };
+    const isVideo = mediaContentType.startsWith('video/');
+    pendingPhoto[from] = { mediaUrl, mediaContentType, isVideo };
     setState(from, 'waiting_for_keywords');
-    await sendMessage(from, `Love it, ${getName(from)}! 💎 Any keywords or details you want me to highlight?\n\nExamples: "gold cuff", "gift for her", "new arrival", "summer vibes"\n\nOr just say *skip* to go straight to it!`);
+    await sendMessage(from, isVideo
+      ? `Love it, ${getName(from)}! 🎬 Any keywords or details for the caption?\n\nOr say *skip* to go straight to it!`
+      : `Love it, ${getName(from)}! 💎 Any keywords or details you want me to highlight?\n\nExamples: "gold cuff", "gift for her", "new arrival", "summer vibes"\n\nOr just say *skip* to go straight to it!`);
   } else if (['pull from website', 'pull website', 'website', 'new collection'].some(w => body.includes(w))) {
     await handleWebsitePull(from);
   } else {
