@@ -157,49 +157,73 @@ async function createBrandedImage(imageBuffer, captionText) {
     .jpeg({ quality: 95 })
     .toBuffer();
 
-  // Load into Jimp for text overlay
-  const image = await Jimp.read(vignetteBuffer);
-
-  // Dark gradient at bottom (pixel-by-pixel)
-  const gradStart = Math.floor(SIZE * 0.58);
-  for (let y = gradStart; y < SIZE; y++) {
-    const alpha = Math.floor(((y - gradStart) / (SIZE - gradStart)) * 180);
-    for (let x = 0; x < SIZE; x++) {
-      const color = image.getPixelColor(x, y);
-      const r = (color >> 24) & 0xff;
-      const g = (color >> 16) & 0xff;
-      const b = (color >> 8) & 0xff;
-      const nr = Math.max(0, r - Math.floor(r * alpha / 255));
-      const ng = Math.max(0, g - Math.floor(g * alpha / 255));
-      const nb = Math.max(0, b - Math.floor(b * alpha / 255));
-      image.setPixelColor(Jimp.rgbaToInt(nr, ng, nb, 255), x, y);
-    }
-  }
-
-  // Clean caption — first complete sentence only
+  // Clean caption — first complete sentence only, max 55 chars
   let clean = stripEmojis(captionText);
   const dot = clean.search(/[.!?]/);
-  if (dot > 15 && dot < 110) {
+  if (dot > 10 && dot < 100) {
     clean = clean.substring(0, dot + 1);
   } else {
-    clean = clean.substring(0, 80);
+    clean = clean.substring(0, 55);
     const sp = clean.lastIndexOf(' ');
-    if (sp > 30) clean = clean.substring(0, sp);
+    if (sp > 15) clean = clean.substring(0, sp) + '...';
   }
   console.log(`🖊️ Drawing: "${clean}"`);
 
-  // Load Jimp built-in fonts
-  const font64 = await Jimp.loadFont(Jimp.FONT_SANS_64_WHITE);
-  const font16 = await Jimp.loadFont(Jimp.FONT_SANS_16_WHITE);
+  // Word wrap (~22 chars per line at 70px)
+  const words = clean.split(' ');
+  const svgLines = [];
+  let cur = '';
+  for (const w of words) {
+    const test = cur ? cur + ' ' + w : w;
+    if (test.length > 22) {
+      if (cur) svgLines.push(cur);
+      cur = w;
+      if (svgLines.length >= 3) break;
+    } else {
+      cur = test;
+    }
+  }
+  if (cur && svgLines.length < 4) svgLines.push(cur);
 
-  // Print caption text (auto word-wrap by pixel width)
-  image.print(font64, 50, SIZE - 300, { text: clean, alignmentX: Jimp.HORIZONTAL_ALIGN_LEFT }, SIZE - 100, 240);
+  const lineH = 80;
+  const captionY = SIZE - 115 - (svgLines.length - 1) * lineH;
+  const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const tspans = svgLines.map((line, i) =>
+    `<tspan x="60" dy="${i === 0 ? 0 : lineH}">${esc(line)}</tspan>`
+  ).join('');
 
-  // Tagline + @lilamiami at bottom
-  image.print(font16, 50, SIZE - 55, "MIAMI'S EVERYDAY GOLD");
-  image.print(font16, SIZE - 220, SIZE - 55, '@lilamiami');
+  // SVG overlay: dark bottom gradient + serif text + tagline
+  const textSvg = Buffer.from(
+    `<svg width="${SIZE}" height="${SIZE}" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="black" stop-opacity="0"/>
+          <stop offset="100%" stop-color="black" stop-opacity="0.80"/>
+        </linearGradient>
+        <filter id="ts" x="-5%" y="-5%" width="110%" height="130%">
+          <feDropShadow dx="2" dy="2" stdDeviation="4" flood-color="black" flood-opacity="0.85"/>
+        </filter>
+      </defs>
+      <rect x="0" y="${SIZE - 420}" width="${SIZE}" height="420" fill="url(#g)"/>
+      <text x="60" y="${captionY}"
+        font-family="DejaVu Serif, Georgia, serif"
+        font-size="70" font-style="italic"
+        fill="white" filter="url(#ts)">${tspans}</text>
+      <text x="60" y="${SIZE - 42}"
+        font-family="DejaVu Sans, Arial, sans-serif"
+        font-size="21" letter-spacing="3"
+        fill="rgba(255,255,255,0.85)">MIAMI'S EVERYDAY GOLD</text>
+      <text x="${SIZE - 60}" y="${SIZE - 42}"
+        font-family="DejaVu Sans, Arial, sans-serif"
+        font-size="21" text-anchor="end"
+        fill="rgba(255,255,255,0.85)">@lilamiami</text>
+    </svg>`
+  );
 
-  return await image.getBufferAsync(Jimp.MIME_JPEG);
+  return await sharp(vignetteBuffer)
+    .composite([{ input: textSvg, top: 0, left: 0 }])
+    .jpeg({ quality: 95 })
+    .toBuffer();
 }
 
 async function uploadToImgBB(imageBuffer) {
@@ -216,12 +240,12 @@ function extractCaption(fullContent) {
   const match = fullContent.match(/CAPTION[^\n]*\n+([\s\S]*?)(?=\n\s*(?:HASHTAG|BEST TIME|QUICK TIP|#|⏰|💡)|$)/i);
   if (match) {
     const text = match[1].trim().replace(/[^\x20-\x7E\s]/g, '').trim();
-    // Take first 2 sentences max
+    // Take FIRST sentence only (cleaner overlay text)
     const parts = text.split(/(?<=[.!?])\s+/);
-    return parts.slice(0, 2).join(' ').substring(0, 180).trim();
+    return parts[0].substring(0, 120).trim();
   }
-  // Fallback: first 180 chars stripped of emojis
-  return fullContent.replace(/[^\x20-\x7E\s]/g, '').trim().substring(0, 180);
+  // Fallback: first 120 chars stripped of emojis
+  return fullContent.replace(/[^\x20-\x7E\s]/g, '').trim().substring(0, 120);
 }
 
 async function generateContent(imageBase64, imageContentType, userCaption) {
@@ -240,7 +264,7 @@ Tagline: "Miami's everyday gold — handpicked for the modern woman."
 When given a product photo, generate a complete Instagram post with these 4 sections:
 
 📝 CAPTION
-2-3 sentences. Engaging, on-brand, natural — not salesy. Include 1-2 tasteful emojis. Speak to the modern Miami woman.
+2-3 sentences. IMPORTANT: Start with a short, punchy first sentence under 55 characters that ends with a period, exclamation, or question mark. Then 1-2 follow-up sentences. Include 1-2 tasteful emojis. Speak to the modern Miami woman.
 
 #️⃣ HASHTAGS
 25 relevant hashtags. Mix popular (#jewelry #gold) with niche (#miamijewelry #lilamiami #goldjewelry #handpickedjewelry) and lifestyle tags (#miamiwoman #everydayluxury).
