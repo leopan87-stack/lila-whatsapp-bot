@@ -742,6 +742,9 @@ async function uploadToImgBB(imageBuffer) {
 
 // ── Video editing via FFmpeg ──────────────────────────────────────────────────
 const ffmpeg = require('fluent-ffmpeg');
+const ffmpegPath = require('ffmpeg-static');
+ffmpeg.setFfmpegPath(ffmpegPath);
+console.log('🎬 ffmpeg-static path:', ffmpegPath);
 const os = require('os');
 
 async function editVideo(videoBuffer, captionText) {
