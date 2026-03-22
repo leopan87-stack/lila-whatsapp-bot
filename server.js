@@ -43,19 +43,32 @@ Using the product photo as reference, generate a close-up lifestyle photo of the
 - Frame the shot tightly on the body part where the jewelry sits: wrist and hand for a bracelet, neck and collarbone for a necklace, earlobe and neck for earrings, finger for a ring
 - The face must NOT appear in the frame at all — crop well above or below it
 - Warm Latina skin tone, completely matte — not oily, not shiny, not plastic, not airbrushed
-- This is a macro close-up shot — treat it like an unedited candid photo taken on an iPhone in natural light, completely raw and unfiltered
-- PORES must be clearly visible and open everywhere — neck, collarbone, chest, wrist, forearm — uneven pore size, sebaceous pores, real skin grain at pixel level
-- Neck and collarbone skin must show real texture: fine horizontal neck lines, subtle skin grain, visible pores — NOT smooth like a mannequin
-- Natural collarbone shadow and depth, slight skin fold where the collarbone meets the neck
-- Faint peach fuzz on neck and chest area — barely visible fine hairs catching the light
+- This is a macro close-up shot — treat it like an unedited candid photo taken in natural light, completely raw and unfiltered, no Facetune, no smoothing filters
+
+SKIN PHYSICS:
+- Subsurface scattering visible on thin skin areas — light passes slightly through collarbone and neck skin creating a warm translucent glow from within, not opaque flat surface
+- Skin is fully diffuse with zero specular highlights — only the jewelry reflects light
+- Skin surface has micro-bumps and valleys like real dermis — visible micro-normal texture, not flat
+- Faint pink and red capillary flush visible under the skin on chest and neck — the kind you see on real warm skin
+- Visible subdermal fat layer on collarbone creates soft natural volume
+
+SKIN DETAIL:
+- PORES must be clearly visible and open everywhere — neck, collarbone, chest, wrist — uneven pore size, sebaceous filaments, real skin grain at pixel level
+- Neck and collarbone must show real texture: fine horizontal neck lines, visible pores, skin grain — NOT smooth like a mannequin
+- Faint peach fuzz on neck and chest — fine hairs barely visible catching the side light
 - Tiny blue veins faintly visible under the skin near wrist and inner arm
-- Visible fine crease lines on wrist and knuckles, natural skin folds where the hand bends
-- Faint arm hair on forearm — fine and natural
-- Subtle freckles and sun spots from Miami sun, one or two tiny blemishes or dark spots
-- Natural skin tone variation — slight redness on collarbone from sun, uneven warmth across chest and neck
-- Shot at ISO 640 — subtle natural digital grain visible across the entire image, especially in shadow areas
-- Side lighting raking across the skin at a low angle to cast micro-shadows inside pores and reveal surface texture
-- Imagine this was taken by a friend with a good phone camera — real, candid, no studio retouching, no Facetune, no smoothing filters
+- Visible crease lines on wrist and knuckles, natural skin folds where hand bends
+- Subtle freckles, sun spots, one or two tiny blemishes — uneven melanin distribution, not uniform skin color
+- Natural skin tone variation — slight redness on collarbone, uneven warmth across chest and neck
+
+CAMERA & LENS:
+- Shot at ISO 640 — subtle natural digital grain visible especially in shadow areas
+- Focus is sharpest on the jewelry — skin slightly softer further from focal plane, natural gradual focus falloff
+- Slight magenta/green color shift in shadows like a real camera sensor
+- Skin highlights roll off softly and never clip to pure white
+- Side lighting raking across skin at low angle casting micro-shadows inside pores to reveal surface texture
+
+STRICTLY FORBIDDEN: skin smoothing, airbrushing, dodge and burn, frequency separation, beauty retouch, clarity boost on skin
 - The jewelry must match EXACTLY the design, colors, stones, and materials from the reference photo
 - The jewelry is the clear hero of the shot — well-lit, sharp, and beautiful
 - Background is soft, warm, slightly blurred — lifestyle feel, real environment
