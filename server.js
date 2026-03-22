@@ -31,71 +31,98 @@ const taglineTTS = fontTagline;
 const GOOGLE_AI_KEY = process.env.GOOGLE_AI_KEY;
 
 async function createBrandedImageAI(imageBuffer, captionText) {
+  const SIZE = 1080;
+  const GOLD = '#F5D285';
   const base64Image = imageBuffer.toString('base64');
-  // Clean caption — first sentence, max 40 chars
-  let overlayCaption = stripEmojis(captionText);
-  const dotPos = overlayCaption.search(/[.!?]/);
-  if (dotPos > 8 && dotPos < 80) overlayCaption = overlayCaption.substring(0, dotPos + 1);
-  else { overlayCaption = overlayCaption.substring(0, 40); const sp = overlayCaption.lastIndexOf(' '); if (sp > 10) overlayCaption = overlayCaption.substring(0, sp) + '.'; }
 
-  const prompt = `You are the creative director and graphic designer for Lila Miami, a luxury jewelry brand in Miami, Florida.
+  // ── Step 1: Gemini enhances background + lighting ONLY (no text — we add that) ──
+  const bgPrompt = `You are a luxury product photographer for Lila Miami jewelry brand.
+Transform this jewelry photo into an editorial Instagram image:
+- Keep the jewelry item EXACTLY as-is — same shape, colors, materials, design — do NOT modify it
+- Replace the background with dark black marble surface, moody and dramatic
+- Add warm golden rim lighting glowing softly around the jewelry
+- Keep the jewelry centered as the clear hero
+- Output: square 1:1 format, photorealistic, no text, no watermarks`;
 
-Your task is to output a single finished 1:1 square Instagram post image (1080x1080). Follow every step exactly.
-
-━━━ STEP 1: JEWELRY — DO NOT TOUCH ━━━
-• The jewelry item must remain EXACTLY as in the original photo
-• Same shape, same colors, same material, same design — pixel perfect
-• Do NOT redraw, recreate, or modify the item in any way
-• Only the background and lighting around it can change
-
-━━━ STEP 2: BACKGROUND & LIGHTING ━━━
-• Replace/enhance the background: dark black marble surface, moody and dramatic
-• Add warm golden light glowing softly beneath and around the jewelry
-• Keep the jewelry centered as the clear hero of the image
-• The top 75% of the image is the photo — dramatic, editorial, luxury
-
-━━━ STEP 3: BOTTOM TEXT AREA (MANDATORY — always include this) ━━━
-• The bottom 25% of the image must have a smooth dark gradient overlay (black, 80% opacity) so text is clearly readable
-• In this dark area, add the following text exactly:
-
-  CENTER of bottom area — italic champagne/gold serif font (like Playfair Display), size ~52px:
-  "${overlayCaption}"
-
-  BOTTOM-LEFT corner, 30px from left edge, 30px from bottom — small white uppercase sans-serif, size ~18px, letter-spacing 2px:
-  "MIAMI'S EVERYDAY GOLD"
-
-  BOTTOM-RIGHT corner, 30px from right edge, 30px from bottom — small white sans-serif, size ~18px:
-  "@lilamiami"
-
-━━━ TEXT RULES ━━━
-• ALL 3 text elements are MANDATORY — never skip them
-• All text must be 100% inside the image frame — never clipped or cut off
-• Text must have enough contrast to be clearly readable on dark background
-• Add subtle text shadow if needed for readability
-
-Output: 1080x1080 square, photorealistic, luxury editorial, no watermarks, no extra decorations.`;
-
-
-  const response = await axios.post(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${GOOGLE_AI_KEY}`,
-    {
-      contents: [{
-        parts: [
+  let enhancedBuffer;
+  try {
+    const response = await axios.post(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${GOOGLE_AI_KEY}`,
+      {
+        contents: [{ parts: [
           { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
-          { text: prompt }
-        ]
-      }],
-      generationConfig: { responseModalities: ['IMAGE', 'TEXT'] }
+          { text: bgPrompt }
+        ]}],
+        generationConfig: { responseModalities: ['IMAGE', 'TEXT'] }
+      }
+    );
+    const parts = response.data.candidates[0].content.parts;
+    const imgPart = parts.find(p => p.inlineData);
+    if (imgPart) {
+      enhancedBuffer = await sharp(Buffer.from(imgPart.inlineData.data, 'base64'))
+        .resize(SIZE, SIZE, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 1 } })
+        .jpeg({ quality: 95 })
+        .toBuffer();
+      console.log('✅ Gemini enhanced background successfully');
+    } else {
+      console.warn('⚠️ Gemini returned no image, using original');
     }
-  );
+  } catch (e) {
+    console.warn('⚠️ Gemini failed:', e.message, '— using original photo');
+  }
 
-  const parts = response.data.candidates[0].content.parts;
-  const imgPart = parts.find(p => p.inlineData);
-  if (!imgPart) throw new Error('Gemini returned no image');
+  // Fallback: if Gemini failed, use the original photo with dark overlay
+  if (!enhancedBuffer) {
+    enhancedBuffer = await sharp(imageBuffer)
+      .resize(SIZE, SIZE, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 1 } })
+      .modulate({ brightness: 0.85, saturation: 1.2 })
+      .jpeg({ quality: 95 })
+      .toBuffer();
+  }
 
-  // Resize to 1080x1080 and return — Gemini handles all text and styling
-  return await sharp(Buffer.from(imgPart.inlineData.data, 'base64'))
-    .resize(1080, 1080, { fit: 'cover', position: 'center' })
+  // ── Step 2: Our code adds text — 100% guaranteed, consistent every time ──
+  let clean = stripEmojis(captionText);
+  const dot = clean.search(/[.!?]/);
+  if (dot > 10 && dot < 100) clean = clean.substring(0, dot + 1);
+  else { clean = clean.substring(0, 55); const sp = clean.lastIndexOf(' '); if (sp > 15) clean = clean.substring(0, sp) + '...'; }
+  console.log(`🖊️ Adding text overlay: "${clean}"`);
+
+  const captionLines = wrapText(clean, 22, 3);
+  const lineH = 72;
+  const totalTextH = captionLines.length * lineH;
+  // Caption centered, sitting 120px above the tagline area
+  const captionY = SIZE - 140 - totalTextH;
+
+  let captionPaths = '';
+  captionLines.forEach((line, i) => {
+    if (!fontItalic) return;
+    const metrics = fontItalic.getMetrics(line, { fontSize: 62 });
+    const x = (SIZE - metrics.width) / 2;
+    captionPaths += fontItalic.getPath(line, {
+      fontSize: 62, anchor: 'top left', x, y: captionY + i * lineH,
+      attributes: { fill: GOLD, filter: 'url(#ts)' },
+    });
+  });
+
+  const taglines = fontTagline ? buildTaglineAndHandle(SIZE) : '';
+
+  const textSvg = Buffer.from(`<svg width="${SIZE}" height="${SIZE}" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="gb" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="black" stop-opacity="0"/>
+        <stop offset="100%" stop-color="black" stop-opacity="0.88"/>
+      </linearGradient>
+      <filter id="ts" x="-10%" y="-20%" width="130%" height="160%">
+        <feDropShadow dx="0" dy="2" stdDeviation="5" flood-color="black" flood-opacity="0.9"/>
+      </filter>
+    </defs>
+    <rect x="0" y="${SIZE - 320}" width="${SIZE}" height="320" fill="url(#gb)"/>
+    ${captionPaths}
+    ${taglines}
+  </svg>`);
+
+  return await sharp(enhancedBuffer)
+    .composite([{ input: textSvg, top: 0, left: 0 }])
     .jpeg({ quality: 95 })
     .toBuffer();
 }
