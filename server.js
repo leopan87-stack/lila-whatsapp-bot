@@ -177,6 +177,16 @@ const app = express();
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 
+// Test endpoint — check which fonts are loaded
+app.get('/test-fonts', (req, res) => {
+  res.json({
+    fontItalic: fontItalic ? 'loaded' : 'NULL',
+    fontBold: fontBold ? 'loaded' : 'NULL',
+    fontScript: fontScript ? 'loaded' : 'NULL',
+    fontTagline: fontTagline ? 'loaded' : 'NULL',
+  });
+});
+
 // Test endpoint — trigger morning ping manually
 app.get('/test-ping', async (req, res) => {
   await broadcastMorningPing();
