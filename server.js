@@ -139,7 +139,7 @@ async function createBrandedImage(imageBuffer, captionText) {
   const image = await Jimp.read(resizedBuffer);
 
   // Dark gradient overlay at bottom
-  const GRAD_START = SIZE - 320;
+  const GRAD_START = SIZE - 420;
   for (let y = GRAD_START; y < SIZE; y++) {
     const opacity = (y - GRAD_START) / (SIZE - GRAD_START); // 0 to 1
     for (let x = 0; x < SIZE; x++) {
@@ -151,28 +151,37 @@ async function createBrandedImage(imageBuffer, captionText) {
     }
   }
 
-  // Load built-in white font for caption
-  const font32 = await Jimp.loadFont(Jimp.FONT_SANS_32_WHITE);
+  // Load fonts
+  const font64 = await Jimp.loadFont(Jimp.FONT_SANS_64_WHITE);
   const font16 = await Jimp.loadFont(Jimp.FONT_SANS_16_WHITE);
 
-  // Take only first complete sentence, max 80 chars
+  // Take only first complete sentence
   let clean = stripEmojis(captionText);
   const sentenceEnd = clean.search(/[.!?]/);
-  if (sentenceEnd > 20 && sentenceEnd < 100) {
+  if (sentenceEnd > 20 && sentenceEnd < 120) {
     clean = clean.substring(0, sentenceEnd + 1);
   } else {
-    // Hard cut at last space before 80 chars
-    clean = clean.substring(0, 85);
+    clean = clean.substring(0, 90);
     const lastSpace = clean.lastIndexOf(' ');
     if (lastSpace > 40) clean = clean.substring(0, lastSpace) + '...';
   }
   console.log(`🖊️ Drawing: "${clean}"`);
 
-  // Print caption
-  image.print(font32, 50, SIZE - 170, { text: clean, alignmentX: Jimp.HORIZONTAL_ALIGN_LEFT }, SIZE - 100, 130);
+  // Big caption text — centered, 2 lines max
+  image.print(
+    font64,
+    40,
+    SIZE - 260,
+    { text: clean, alignmentX: Jimp.HORIZONTAL_ALIGN_LEFT },
+    SIZE - 80,
+    200
+  );
 
-  // Print @lilamiami in gold area
-  image.print(font16, 50, SIZE - 38, '@lilamiami');
+  // Tagline
+  image.print(font16, 40, SIZE - 55, "MIAMI'S EVERYDAY GOLD");
+
+  // @lilamiami
+  image.print(font16, SIZE - 200, SIZE - 55, '@lilamiami');
 
   return await image.getBufferAsync(Jimp.MIME_JPEG);
 }
