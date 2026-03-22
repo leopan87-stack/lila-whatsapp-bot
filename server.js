@@ -32,17 +32,31 @@ const GOOGLE_AI_KEY = process.env.GOOGLE_AI_KEY;
 
 async function createBrandedImageAI(imageBuffer, captionText) {
   const base64Image = imageBuffer.toString('base64');
+  // Keep caption short for overlay — max one clean sentence
+  const overlayText = captionText.split(/[.!?]/)[0].substring(0, 50).trim() + '.';
+
   const prompt = `You are the creative director for Lila Miami, a luxury jewelry brand based in Miami.
 
-Take this product photo and transform it into a stunning Instagram post:
-- Keep the actual jewelry product as the clear hero of the image
-- Enhance the background: dark, moody, dramatic — black marble, velvet, or deep dark surface
-- Improve lighting: add warm golden rim light on the jewelry to make it glow beautifully
-- Add elegant text overlay at the bottom in Playfair Display italic gold/champagne color: "${captionText}"
-- Add "@lilamiami" small elegant text bottom right corner in white
-- Add "MIAMI'S EVERYDAY GOLD" small uppercase text bottom left corner in white
-- Overall: luxury, editorial, high-end Miami jewelry brand aesthetic
-- Output: square 1:1 format, Instagram-ready, photorealistic`;
+Take this product photo and enhance it into a stunning Instagram post. Follow these rules STRICTLY:
+
+CRITICAL — DO NOT ALTER THE JEWELRY:
+- The jewelry/gemstone item must appear EXACTLY as in the original photo — same shape, same colors, same details
+- Do NOT recreate, redraw, or modify the item in any way
+- Only change the background and lighting around it
+
+BACKGROUND & LIGHTING:
+- Replace background with dark black marble surface, moody and dramatic
+- Add soft warm golden rim lighting to make the jewelry glow naturally
+- Keep the jewelry as the clear centered hero
+
+TEXT OVERLAY (very important — must be fully visible):
+- At the bottom of the image, leave a dark area for text — do NOT place text at the very edge
+- Add italic gold/champagne text 80px from the bottom: "${overlayText}"
+- Add small white text bottom-left corner (30px from edge): "MIAMI'S EVERYDAY GOLD"
+- Add small white text bottom-right corner (30px from edge): "@lilamiami"
+- ALL text must be fully visible and not cut off
+
+Output: square 1:1 format, photorealistic, luxury editorial style.`;
 
   const response = await axios.post(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${GOOGLE_AI_KEY}`,
