@@ -246,7 +246,7 @@ async function broadcastMorningPing() {
   for (const number of GROUP) {
     try {
       const name = getName(number);
-      const message = `Good morning, ${name}! ☀️ Ready for today's Lila Miami post?\n\nSend me a product photo 📸 or say *pull from website* and I'll automatically grab today's featured piece from the new collection and create the post for you. 💎`;
+      const message = `Good morning, ${name}! ☀️ Ready to create today's Lila Miami post?\n\nSend me a product photo 📸 — or would you like me to pull a piece from your new arrivals on the website and post it for you? Just say *website*! 💎`;
       await sendMessage(number, message);
       setState(number, 'waiting_for_photo');
       console.log(`✅ Pinged ${number}`);
@@ -794,7 +794,7 @@ app.post('/webhook', async (req, res) => {
     } else if (['pull from website', 'pull website', 'website', 'new collection'].some(w => body.includes(w))) {
       await handleWebsitePull(from);
     } else {
-      await sendMessage(from, `Go ahead and send me the photo, ${getName(from)}! 📸\n\nOr say *website* and I'll pull the latest piece from the new collection automatically. 💎`);
+      await sendMessage(from, `Send me a Lila Miami product photo 📸 or would you like me to pull a piece from your new arrivals on the website and create the post for you? Just say *website*! 💎`);
     }
     return;
   }
@@ -896,7 +896,7 @@ app.post('/webhook', async (req, res) => {
     await handleWebsitePull(from);
   } else {
     setState(from, 'waiting_for_photo');
-    await sendMessage(from, `Hi ${getName(from)}! 👋 Send me a Lila Miami product photo and I'll create a branded post ready for Instagram. 💎\n\nOr say *pull from website* and I'll grab the latest products automatically!`);
+    await sendMessage(from, `Hi ${getName(from)}! 👋 Send me a Lila Miami product photo 📸 — or would you like me to pull a piece from your new arrivals on the website and create the post for you? Just say *website*! 💎`);
   }
 });
 
