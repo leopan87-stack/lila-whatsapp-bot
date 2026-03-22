@@ -150,6 +150,33 @@ cron.schedule('0 10 * * *', broadcastMorningPing, {
   timezone: 'America/New_York',
 });
 
+async function handleWebsitePull(from) {
+  await sendMessage(from, `On it, ${getName(from)}! Pulling the latest products from Lila Miami... 🛍️`);
+  try {
+    const shopToken = process.env.SHOPIFY_ACCESS_TOKEN;
+    const shopUrl = 'pvuczu-4z.myshopify.com';
+    const res = await axios.get(
+      `https://${shopUrl}/admin/api/2025-01/products.json?limit=5&status=active`,
+      { headers: { 'X-Shopify-Access-Token': shopToken } }
+    );
+    const products = res.data.products;
+    if (!products || products.length === 0) {
+      await sendMessage(from, `Hmm, couldn't find any products. Try again or send me a photo directly! 📸`);
+      return;
+    }
+    // Build product list message
+    const list = products.map((p, i) => `${i + 1}. ${p.title} — $${p.variants[0]?.price}`).join('\n');
+    await sendMessage(from, `Here are the latest Lila Miami products:\n\n${list}\n\nReply with the number to generate a post for that product!`);
+
+    // Store products for follow-up
+    pendingPhoto[from] = { shopifyProducts: products };
+    setState(from, 'waiting_for_product_pick');
+  } catch (err) {
+    console.error('❌ Shopify pull error:', err.message);
+    await sendMessage(from, `Couldn't reach the Lila Miami store right now. Send me a photo instead and I'll create the post! 📸`);
+  }
+}
+
 async function downloadImageBuffer(mediaUrl) {
   const response = await axios.get(mediaUrl, {
     auth: {
@@ -547,6 +574,45 @@ app.post('/webhook', async (req, res) => {
     return;
   }
 
+  if (currentState === 'waiting_for_product_pick') {
+    const pick = parseInt(body.trim()) - 1;
+    const pending = pendingPhoto[from];
+    const products = pending?.shopifyProducts;
+    if (products && pick >= 0 && pick < products.length) {
+      const product = products[pick];
+      const imageUrl = product.images?.[0]?.src;
+      const keywords = `${product.title}. ${product.body_html?.replace(/<[^>]+>/g, '').substring(0, 200) || ''}`;
+      delete pendingPhoto[from];
+      if (imageUrl) {
+        await sendMessage(from, `Great choice! Generating a post for *${product.title}*... ✨`);
+        // Download product image and process
+        const imgRes = await axios.get(imageUrl, { responseType: 'arraybuffer' });
+        const buffer = Buffer.from(imgRes.data);
+        const base64 = buffer.toString('base64');
+        const content = await generateContent(base64, 'image/jpeg', keywords);
+        lastContent[from] = content;
+        const shortCaption = extractCaption(content);
+        let brandedBuffer;
+        try { brandedBuffer = await createBrandedImage(buffer, shortCaption); }
+        catch (e) { brandedBuffer = await sharp(buffer).resize(1080,1080,{fit:'cover'}).jpeg({quality:92}).toBuffer(); }
+        const whatsappUrl = await uploadToImgBB(brandedBuffer);
+        const igUrl = storeImageForInstagram(brandedBuffer);
+        lastImageUrl[from] = igUrl;
+        lastCaption[from] = extractInstagramCaption(content);
+        setState(from, 'waiting_for_approval');
+        await sendImageMessage(from, whatsappUrl, `💎 Here's your post for *${product.title}*:`);
+        for (const chunk of splitMessage(content)) await sendMessage(from, chunk);
+        await sendMessage(from, `What do you think, ${getName(from)}? 👆\n\n*YES* — post it to Instagram ✅\n*RECREATE* — try a different version 🔄\n*NO* — skip this one ❌`);
+      } else {
+        await sendMessage(from, `That product doesn't have an image in the store. Send me a photo and I'll use that! 📸`);
+        setState(from, 'waiting_for_photo');
+      }
+    } else {
+      await sendMessage(from, `Just reply with a number from the list — which product do you want to post?`);
+    }
+    return;
+  }
+
   if (currentState === 'waiting_for_keywords') {
     const keywords = body === 'skip' ? '' : rawBody;
     const pending = pendingPhoto[from];
@@ -591,11 +657,15 @@ app.post('/webhook', async (req, res) => {
 
   // IDLE
   if (numMedia > 0 && mediaUrl) {
-    setState(from, 'waiting_for_photo');
-    await processPhoto(from, mediaUrl, mediaContentType, rawBody);
+    // Ask for keywords before processing (same as waiting_for_photo)
+    pendingPhoto[from] = { mediaUrl, mediaContentType };
+    setState(from, 'waiting_for_keywords');
+    await sendMessage(from, `Love it, ${getName(from)}! 💎 Any keywords or details you want me to highlight?\n\nExamples: "gold cuff", "gift for her", "new arrival", "summer vibes"\n\nOr just say *skip* to go straight to it!`);
+  } else if (['pull from website', 'pull website', 'website', 'new collection'].some(w => body.includes(w))) {
+    await handleWebsitePull(from);
   } else {
     setState(from, 'waiting_for_photo');
-    await sendMessage(from, `Hi ${getName(from)}! 👋 Send me a Lila Miami product photo and I'll create a branded post ready for Instagram. 💎`);
+    await sendMessage(from, `Hi ${getName(from)}! 👋 Send me a Lila Miami product photo and I'll create a branded post ready for Instagram. 💎\n\nOr say *pull from website* and I'll grab the latest products automatically!`);
   }
 });
 
