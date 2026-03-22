@@ -263,7 +263,12 @@ function getName(number) {
 
 // Returns ms until 12:00 PM ET (peak posting time for Lila Miami)
 function getMsUntilNoonET() {
-  return 2 * 60 * 1000; // TEST MODE: 2 minutes — change back to noon logic after testing
+  const now = new Date();
+  const etHour = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false }).format(now));
+  const etMinute = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', minute: 'numeric' }).format(now));
+  const etSecond = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', second: 'numeric' }).format(now));
+  if (etHour >= 12) return 0; // already at or past noon — post now
+  return ((12 - etHour) * 3600 - etMinute * 60 - etSecond) * 1000;
 }
 
 // Best posting times based on Lila Miami Instagram Insights (2,620 followers)
