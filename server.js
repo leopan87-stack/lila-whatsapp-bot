@@ -309,28 +309,37 @@ async function postToInstagram(imageUrl, caption) {
   console.log(`📸 Posting to Instagram. Image URL: ${imageUrl}`);
 
   // Step 1: Create media container
-  const container = await axios.post(
+  const containerRes = await axios.post(
     `https://graph.instagram.com/v21.0/${igUserId}/media`,
     null,
     {
       params: {
         image_url: imageUrl,
         caption: caption,
-        media_type: 'IMAGE',
         access_token: token,
       }
     }
   );
-  const creationId = container.data.id;
-  console.log(`📦 Container created: ${creationId}`);
+  console.log(`📦 Container response:`, JSON.stringify(containerRes.data));
+  const creationId = containerRes.data.id;
+  if (!creationId) throw new Error('No container ID returned: ' + JSON.stringify(containerRes.data));
 
-  // Step 2: Publish
-  await axios.post(
+  // Step 2: Wait for container to be ready
+  await new Promise(r => setTimeout(r, 3000));
+
+  // Step 3: Check status
+  const statusRes = await axios.get(`https://graph.instagram.com/v21.0/${creationId}`, {
+    params: { fields: 'status_code,status', access_token: token }
+  });
+  console.log(`📊 Container status:`, JSON.stringify(statusRes.data));
+
+  // Step 4: Publish
+  const publishRes = await axios.post(
     `https://graph.instagram.com/v21.0/${igUserId}/media_publish`,
     null,
     { params: { creation_id: creationId, access_token: token } }
   );
-  console.log('✅ Posted to Instagram:', creationId);
+  console.log('✅ Posted to Instagram:', JSON.stringify(publishRes.data));
 }
 
 async function uploadToImgBB(imageBuffer) {
