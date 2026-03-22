@@ -8,25 +8,33 @@ const sharp = require('sharp');
 const fs = require('fs');
 const path = require('path');
 const Jimp = require('jimp');
-const TextToSVG = require('text-to-svg');
 
-let fontItalic = null;   // Cormorant Garamond Italic — caption (matches website)
-let fontBold = null;     // Playfair Display Bold — big impact word
-let fontScript = null;   // Dancing Script Bold — accent/script word
-let fontTagline = null;  // Roboto — small tagline
+// Fonts loaded as base64 — embedded in SVG @font-face for true font rendering
+let fontB64Italic = null;   // DM Serif Display Italic — caption
+let fontB64Bold = null;     // Playfair Display Bold — impact word
+let fontB64Script = null;   // Dancing Script Bold — script accent
+let fontB64Tagline = null;  // Roboto Regular — tagline
 try {
-  fontItalic  = TextToSVG.loadSync(path.join(__dirname, 'fonts', 'DMSerifDisplay-Italic.ttf'));
-  fontBold    = TextToSVG.loadSync(path.join(__dirname, 'fonts', 'PlayfairDisplay-Bold.ttf'));
-  fontScript  = TextToSVG.loadSync(path.join(__dirname, 'fonts', 'DancingScript-Bold.ttf'));
-  fontTagline = TextToSVG.loadSync(path.join(__dirname, 'fonts', 'Roboto-Regular.ttf'));
-  console.log('✅ Fonts loaded: Bodoni Moda Italic + Playfair Bold + Dancing Script + Roboto');
+  fontB64Italic  = fs.readFileSync(path.join(__dirname, 'fonts', 'DMSerifDisplay-Italic.ttf')).toString('base64');
+  fontB64Bold    = fs.readFileSync(path.join(__dirname, 'fonts', 'PlayfairDisplay-Bold.ttf')).toString('base64');
+  fontB64Script  = fs.readFileSync(path.join(__dirname, 'fonts', 'DancingScript-Bold.ttf')).toString('base64');
+  fontB64Tagline = fs.readFileSync(path.join(__dirname, 'fonts', 'Roboto-Regular.ttf')).toString('base64');
+  console.log('✅ Fonts loaded as base64 (SVG @font-face rendering)');
 } catch (e) {
-  console.warn('⚠️ Font load failed, will use bitmap fallback:', e.message);
+  console.warn('⚠️ Font load failed:', e.message);
 }
 
-// Alias for existing code
-const captionTTS = fontItalic;
-const taglineTTS = fontTagline;
+function getFontDefs() {
+  const i = fontB64Italic  ? `@font-face{font-family:'LilaCaption';src:url('data:font/truetype;base64,${fontB64Italic}') format('truetype');}` : '';
+  const b = fontB64Bold    ? `@font-face{font-family:'LilaBold';src:url('data:font/truetype;base64,${fontB64Bold}') format('truetype');}` : '';
+  const s = fontB64Script  ? `@font-face{font-family:'LilaScript';src:url('data:font/truetype;base64,${fontB64Script}') format('truetype');}` : '';
+  const t = fontB64Tagline ? `@font-face{font-family:'LilaTagline';src:url('data:font/truetype;base64,${fontB64Tagline}') format('truetype');}` : '';
+  return `<style>${i}${b}${s}${t}</style>`;
+}
+
+function escapeXml(str) {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
 
 // Logo watermark — loaded once at startup, resized + 40% opacity
 let logoBuffer = null;
@@ -151,24 +159,18 @@ Transform this photo into an editorial Instagram image:
 
   const captionLines = wrapText(clean, 20, 3);
   const lineH = 88;
-  // Caption at top — starts 50px from top
-  const captionY = 50;
+  const captionBaseY = 118; // baseline of first line (top 50px + ~68px ascent for 84px font)
 
-  let captionPaths = '';
+  let captionElems = '';
   captionLines.forEach((line, i) => {
-    if (!fontItalic) return;
-    const metrics = fontItalic.getMetrics(line, { fontSize: 84 });
-    const x = (SIZE - metrics.width) / 2;
-    captionPaths += fontItalic.getPath(line, {
-      fontSize: 84, anchor: 'top left', x, y: captionY + i * lineH,
-      attributes: { fill: GOLD, filter: 'url(#ts)' },
-    });
+    captionElems += `<text font-family="LilaCaption" font-size="84" fill="${GOLD}" x="${SIZE / 2}" y="${captionBaseY + i * lineH}" text-anchor="middle" filter="url(#ts)">${escapeXml(line)}</text>`;
   });
 
-  const taglines = fontTagline ? buildTaglineAndHandle(SIZE) : '';
+  const taglines = buildTaglineAndHandle(SIZE);
 
   const textSvg = Buffer.from(`<svg width="${SIZE}" height="${SIZE}" xmlns="http://www.w3.org/2000/svg">
     <defs>
+      ${getFontDefs()}
       <linearGradient id="gt" x1="0" y1="0" x2="0" y2="1">
         <stop offset="0%" stop-color="black" stop-opacity="0.80"/>
         <stop offset="100%" stop-color="black" stop-opacity="0"/>
@@ -183,7 +185,7 @@ Transform this photo into an editorial Instagram image:
     </defs>
     <rect x="0" y="0" width="${SIZE}" height="260" fill="url(#gt)"/>
     <rect x="0" y="${SIZE - 100}" width="${SIZE}" height="100" fill="url(#gb)"/>
-    ${captionPaths}
+    ${captionElems}
     ${taglines}
   </svg>`);
 
@@ -483,15 +485,8 @@ function wrapText(text, charsPerLine, maxLines) {
 }
 
 function buildTaglineAndHandle(SIZE) {
-  if (!fontTagline) return '';
-  const tagText = "MIAMI'S EVERYDAY GOLD";
-  const tagW = fontTagline.getMetrics(tagText, { fontSize: 18 }).width;
-  const tagX = (SIZE - tagW) / 2;
-  const tagPath = fontTagline.getPath(tagText, {
-    fontSize: 18, anchor: 'top left', x: tagX, y: SIZE - 46,
-    attributes: { fill: 'rgba(245,210,133,0.90)' },
-  });
-  return tagPath;  // @lilamiami replaced by logo watermark (bottom right)
+  if (!fontB64Tagline) return '';
+  return `<text font-family="LilaTagline" font-size="18" fill="rgba(245,210,133,0.90)" x="${SIZE / 2}" y="${SIZE - 30}" text-anchor="middle">MIAMI'S EVERYDAY GOLD</text>`;
 }
 
 async function createBrandedImage(imageBuffer, captionText) {
@@ -533,43 +528,30 @@ async function createBrandedImage(imageBuffer, captionText) {
   // Pick layout style — rotate every post
   const style = Math.floor(Date.now() / 1000) % 3;
 
-  if (!fontBold || !fontItalic || !fontScript || !fontTagline) {
-    // Jimp fallback
-    const image = await Jimp.read(baseBuffer);
-    const font64 = await Jimp.loadFont(Jimp.FONT_SANS_64_WHITE);
-    const font16 = await Jimp.loadFont(Jimp.FONT_SANS_16_WHITE);
-    image.print(font64, 50, SIZE - 300, { text: clean, alignmentX: Jimp.HORIZONTAL_ALIGN_LEFT }, SIZE - 100, 240);
-    image.print(font16, 50, SIZE - 55, "MIAMI'S EVERYDAY GOLD");
-    image.print(font16, SIZE - 220, SIZE - 55, '@lilamiami');
-    return await image.getBufferAsync(Jimp.MIME_JPEG);
-  }
+  const fontDefs = getFontDefs();
+  const commonDefs = `
+    ${fontDefs}
+    <filter id="ts" x="-5%" y="-10%" width="120%" height="140%">
+      <feDropShadow dx="1" dy="2" stdDeviation="4" flood-color="black" flood-opacity="0.8"/>
+    </filter>`;
 
   let textSvgStr = '';
 
   if (style === 0) {
     // ── STYLE 1: Bold impact word top-left + italic caption bottom ──
-    // Extract first word as BIG impact word
-    const impactWord = clean.split(' ')[0].replace(/[.,!?]/, '').toUpperCase();
+    const impactWord = escapeXml(clean.split(' ')[0].replace(/[.,!?]/, '').toUpperCase());
     const restWords = clean.split(' ').slice(1).join(' ');
     const restLines = wrapText(restWords, 24, 3);
 
-    const impactPath = fontBold.getPath(impactWord, {
-      fontSize: 130, anchor: 'top left', x: 55, y: 60,
-      attributes: { fill: GOLD, filter: 'url(#ts)' },
-    });
-    const impactW = fontBold.getMetrics(impactWord, { fontSize: 130 }).width;
-    const accentLine = `<line x1="55" y1="200" x2="${Math.min(55 + impactW, SIZE - 60)}" y2="200" stroke="${GOLD}" stroke-width="2" opacity="0.6"/>`;
-
-    let restPaths = '';
+    let restElems = '';
     restLines.forEach((line, i) => {
-      restPaths += fontItalic.getPath(line, {
-        fontSize: 58, anchor: 'top left', x: 60, y: SIZE - 200 - (restLines.length - 1 - i) * 68,
-        attributes: { fill: WHITE, filter: 'url(#ts)' },
-      });
+      const y = SIZE - 200 - (restLines.length - 1 - i) * 68 + 50;
+      restElems += `<text font-family="LilaCaption" font-size="58" fill="${WHITE}" x="60" y="${y}" text-anchor="start" filter="url(#ts)">${escapeXml(line)}</text>`;
     });
 
     textSvgStr = `
       <defs>
+        ${commonDefs}
         <linearGradient id="gt" x1="0" y1="1" x2="0" y2="0">
           <stop offset="0%" stop-color="black" stop-opacity="0"/>
           <stop offset="40%" stop-color="black" stop-opacity="0.5"/>
@@ -578,39 +560,30 @@ async function createBrandedImage(imageBuffer, captionText) {
           <stop offset="0%" stop-color="black" stop-opacity="0"/>
           <stop offset="100%" stop-color="black" stop-opacity="0.85"/>
         </linearGradient>
-        <filter id="ts" x="-5%" y="-10%" width="120%" height="140%">
-          <feDropShadow dx="1" dy="2" stdDeviation="4" flood-color="black" flood-opacity="0.8"/>
-        </filter>
       </defs>
       <rect x="0" y="0" width="${SIZE}" height="240" fill="url(#gt)"/>
       <rect x="0" y="${SIZE - 430}" width="${SIZE}" height="430" fill="url(#gb)"/>
-      ${impactPath}
-      ${accentLine}
-      ${restPaths}
+      <text font-family="LilaBold" font-size="130" fill="${GOLD}" x="55" y="165" text-anchor="start" filter="url(#ts)">${impactWord}</text>
+      <line x1="55" y1="195" x2="400" y2="195" stroke="${GOLD}" stroke-width="2" opacity="0.6"/>
+      ${restElems}
       ${buildTaglineAndHandle(SIZE)}`;
 
   } else if (style === 1) {
-    // ── STYLE 2: Centered script + bold — editorial center block ──
+    // ── STYLE 2: Centered script — editorial center block ──
     const scriptLines = wrapText(clean, 20, 2);
-    const centerY = SIZE / 2 - (scriptLines.length * 80) / 2;
+    const centerBaseY = SIZE / 2 - (scriptLines.length * 100) / 2 + 70;
 
-    let scriptPaths = '';
+    let scriptElems = '';
     scriptLines.forEach((line, i) => {
-      const metrics = fontScript.getMetrics(line, { fontSize: 88 });
-      const x = (SIZE - metrics.width) / 2;
-      scriptPaths += fontScript.getPath(line, {
-        fontSize: 88, anchor: 'top left', x, y: centerY + i * 100,
-        attributes: { fill: GOLD, filter: 'url(#ts)' },
-      });
+      scriptElems += `<text font-family="LilaScript" font-size="88" fill="${GOLD}" x="${SIZE / 2}" y="${centerBaseY + i * 100}" text-anchor="middle" filter="url(#ts)">${escapeXml(line)}</text>`;
     });
 
-    // Thin gold frame
     const pad = 40;
-    const frame = `<rect x="${pad}" y="${pad}" width="${SIZE - pad * 2}" height="${SIZE - pad * 2}"
-      fill="none" stroke="${GOLD}" stroke-width="1.5" opacity="0.5"/>`;
+    const frame = `<rect x="${pad}" y="${pad}" width="${SIZE - pad * 2}" height="${SIZE - pad * 2}" fill="none" stroke="${GOLD}" stroke-width="1.5" opacity="0.5"/>`;
 
     textSvgStr = `
       <defs>
+        ${commonDefs}
         <radialGradient id="gc" cx="50%" cy="50%" r="50%">
           <stop offset="0%" stop-color="black" stop-opacity="0.2"/>
           <stop offset="100%" stop-color="black" stop-opacity="0.75"/>
@@ -619,66 +592,41 @@ async function createBrandedImage(imageBuffer, captionText) {
           <stop offset="0%" stop-color="black" stop-opacity="0"/>
           <stop offset="100%" stop-color="black" stop-opacity="0.80"/>
         </linearGradient>
-        <filter id="ts" x="-5%" y="-10%" width="120%" height="140%">
-          <feDropShadow dx="1" dy="2" stdDeviation="4" flood-color="black" flood-opacity="0.8"/>
-        </filter>
       </defs>
       <rect width="${SIZE}" height="${SIZE}" fill="url(#gc)"/>
       <rect x="0" y="${SIZE - 300}" width="${SIZE}" height="300" fill="url(#gb)"/>
       ${frame}
-      ${scriptPaths}
+      ${scriptElems}
       ${buildTaglineAndHandle(SIZE)}`;
 
   } else {
     // ── STYLE 3: Full bottom dark panel — bold large + script small ──
     const boldLines = wrapText(clean, 18, 2);
     const panelH = 360;
-    const boldY = SIZE - panelH + 40;
+    const boldBaseY = SIZE - panelH + 40 + 75;
 
-    let boldPaths = '';
+    let boldElems = '';
     boldLines.forEach((line, i) => {
-      boldPaths += fontBold.getPath(line, {
-        fontSize: 82, anchor: 'top left', x: 60, y: boldY + i * 96,
-        attributes: { fill: GOLD, filter: 'url(#ts)' },
-      });
+      boldElems += `<text font-family="LilaBold" font-size="82" fill="${GOLD}" x="60" y="${boldBaseY + i * 96}" text-anchor="start" filter="url(#ts)">${escapeXml(line)}</text>`;
     });
 
-    // Script accent word — "by @lilamiami" style
-    const scriptAccent = fontScript.getPath('everyday gold.', {
-      fontSize: 52, anchor: 'top left', x: 62, y: boldY + boldLines.length * 96 + 8,
-      attributes: { fill: 'rgba(255,255,255,0.75)', filter: 'url(#ts)' },
-    });
-
-    const lilaText = '@lilamiami';
-    const lilaW = fontTagline.getMetrics(lilaText, { fontSize: 18 }).width;
-    const lilaPath = fontTagline.getPath(lilaText, {
-      fontSize: 18, anchor: 'top left', x: SIZE - 60 - lilaW, y: SIZE - 46,
-      attributes: { fill: 'rgba(255,255,255,0.80)' },
-    });
-    const tagPath = fontTagline.getPath("MIAMI'S EVERYDAY GOLD", {
-      fontSize: 18, anchor: 'top left', x: 60, y: SIZE - 46,
-      attributes: { fill: 'rgba(255,255,255,0.80)' },
-    });
-
-    // Gold accent line
-    const accentLine = `<line x1="60" y1="${boldY - 16}" x2="200" y2="${boldY - 16}" stroke="${GOLD}" stroke-width="1.5" opacity="0.7"/>`;
+    const scriptY = boldBaseY + boldLines.length * 96 + 5;
+    const accentLineY = boldBaseY - 75 - 16;
 
     textSvgStr = `
       <defs>
+        ${commonDefs}
         <linearGradient id="gb" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stop-color="black" stop-opacity="0"/>
           <stop offset="100%" stop-color="black" stop-opacity="0.92"/>
         </linearGradient>
-        <filter id="ts" x="-5%" y="-10%" width="120%" height="140%">
-          <feDropShadow dx="1" dy="2" stdDeviation="4" flood-color="black" flood-opacity="0.8"/>
-        </filter>
       </defs>
       <rect x="0" y="${SIZE - panelH}" width="${SIZE}" height="${panelH}" fill="url(#gb)"/>
-      ${accentLine}
-      ${boldPaths}
-      ${scriptAccent}
-      ${tagPath}
-      ${lilaPath}`;
+      <line x1="60" y1="${accentLineY}" x2="200" y2="${accentLineY}" stroke="${GOLD}" stroke-width="1.5" opacity="0.7"/>
+      ${boldElems}
+      <text font-family="LilaScript" font-size="52" fill="rgba(255,255,255,0.75)" x="62" y="${scriptY}" text-anchor="start" filter="url(#ts)">everyday gold.</text>
+      <text font-family="LilaTagline" font-size="18" fill="rgba(255,255,255,0.80)" x="60" y="${SIZE - 30}" text-anchor="start">MIAMI'S EVERYDAY GOLD</text>
+      <text font-family="LilaTagline" font-size="18" fill="rgba(255,255,255,0.80)" x="${SIZE - 60}" y="${SIZE - 30}" text-anchor="end">@lilamiami</text>`;
   }
 
   const textSvg = Buffer.from(`<svg width="${SIZE}" height="${SIZE}" xmlns="http://www.w3.org/2000/svg">${textSvgStr}</svg>`);
@@ -760,23 +708,18 @@ async function createVideoTextOverlay(captionText) {
 
   const captionLines = wrapText(clean, 20, 3);
   const lineH = 88;
-  const captionY = 50;
+  const captionBaseY = 118;
 
-  let captionPaths = '';
+  let captionElems = '';
   captionLines.forEach((line, i) => {
-    if (!fontItalic) return;
-    const metrics = fontItalic.getMetrics(line, { fontSize: 84 });
-    const x = (SIZE - metrics.width) / 2;
-    captionPaths += fontItalic.getPath(line, {
-      fontSize: 84, anchor: 'top left', x, y: captionY + i * lineH,
-      attributes: { fill: GOLD, filter: 'url(#ts)' },
-    });
+    captionElems += `<text font-family="LilaCaption" font-size="84" fill="${GOLD}" x="${SIZE / 2}" y="${captionBaseY + i * lineH}" text-anchor="middle" filter="url(#ts)">${escapeXml(line)}</text>`;
   });
 
-  const taglines = fontTagline ? buildTaglineAndHandle(SIZE) : '';
+  const taglines = buildTaglineAndHandle(SIZE);
 
   const textSvg = Buffer.from(`<svg width="${SIZE}" height="${SIZE}" xmlns="http://www.w3.org/2000/svg">
     <defs>
+      ${getFontDefs()}
       <linearGradient id="gt" x1="0" y1="0" x2="0" y2="1">
         <stop offset="0%" stop-color="black" stop-opacity="0.80"/>
         <stop offset="100%" stop-color="black" stop-opacity="0"/>
@@ -791,7 +734,7 @@ async function createVideoTextOverlay(captionText) {
     </defs>
     <rect x="0" y="0" width="${SIZE}" height="260" fill="url(#gt)"/>
     <rect x="0" y="${SIZE - 100}" width="${SIZE}" height="100" fill="url(#gb)"/>
-    ${captionPaths}
+    ${captionElems}
     ${taglines}
   </svg>`);
 
