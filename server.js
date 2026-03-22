@@ -15,7 +15,7 @@ let fontBold = null;     // Playfair Display Bold — big impact word
 let fontScript = null;   // Dancing Script Bold — accent/script word
 let fontTagline = null;  // Roboto — small tagline
 try {
-  fontItalic  = TextToSVG.loadSync(path.join(__dirname, 'fonts', 'CormorantGaramond-Italic.woff'));
+  fontItalic  = TextToSVG.loadSync(path.join(__dirname, 'fonts', 'DMSerifDisplay-Italic.woff'));
   fontBold    = TextToSVG.loadSync(path.join(__dirname, 'fonts', 'PlayfairDisplay-Bold.ttf'));
   fontScript  = TextToSVG.loadSync(path.join(__dirname, 'fonts', 'DancingScript-Bold.ttf'));
   fontTagline = TextToSVG.loadSync(path.join(__dirname, 'fonts', 'Roboto-Regular.ttf'));
@@ -137,10 +137,10 @@ Transform this photo into an editorial Instagram image:
   let captionPaths = '';
   captionLines.forEach((line, i) => {
     if (!fontItalic) return;
-    const metrics = fontItalic.getMetrics(line, { fontSize: 62 });
+    const metrics = fontItalic.getMetrics(line, { fontSize: 72 });
     const x = (SIZE - metrics.width) / 2;
     captionPaths += fontItalic.getPath(line, {
-      fontSize: 62, anchor: 'top left', x, y: captionY + i * lineH,
+      fontSize: 72, anchor: 'top left', x, y: captionY + i * lineH,
       attributes: { fill: GOLD, filter: 'url(#ts)' },
     });
   });
