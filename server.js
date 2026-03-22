@@ -294,6 +294,7 @@ const lastImageUrl = {};
 const lastCaption = {};
 const pendingPhoto = {}; // stores photo info while waiting for keywords
 const processing = new Set(); // deduplicate concurrent webhook calls
+const scheduledPosts = {}; // stores setTimeout references for cancellation
 
 function getState(number) {
   return state[number] || 'idle';
@@ -855,7 +856,12 @@ app.post('/webhook', async (req, res) => {
 
   if (currentState === 'waiting_for_photo') {
     if (numMedia > 0 && mediaUrl) {
-      // Save photo info and ask for keywords first
+      // Cancel any scheduled post if a new photo comes in
+      if (scheduledPosts[from]) {
+        clearTimeout(scheduledPosts[from]);
+        delete scheduledPosts[from];
+        await sendMessage(from, `Got it — I cancelled the scheduled post and I'll use this new photo instead! 🔄`);
+      }
       pendingPhoto[from] = { mediaUrl, mediaContentType };
       setState(from, 'waiting_for_keywords');
       await sendMessage(from, `Love it, ${getName(from)}! 💎 Before I create your post — any keywords or details you want me to highlight?\n\nExamples: "gift for mom", "gold bracelet", "new arrival", "summer vibes"\n\nOr just say *skip* to go straight to it!`);
@@ -952,7 +958,8 @@ app.post('/webhook', async (req, res) => {
       if (delay > 0) {
         const minutesLeft = Math.round(delay / 60000);
         await sendMessage(from, `Perfect, ${name}! 🕐 Post is ready and scheduled for *12:00 PM ET* — your peak time.\n\nI'll publish it automatically in ${minutesLeft} minutes. You're all set! 💎`);
-        setTimeout(async () => {
+        scheduledPosts[from] = setTimeout(async () => {
+          delete scheduledPosts[from];
           try {
             await postToInstagram(imageUrl, caption);
             await sendMessage(from, `🎉 It's live! Your post just went up on Instagram at peak time. Great work, ${name}! 💎`);
@@ -988,7 +995,12 @@ app.post('/webhook', async (req, res) => {
 
   // IDLE
   if (numMedia > 0 && mediaUrl) {
-    // Ask for keywords before processing (same as waiting_for_photo)
+    // Cancel any scheduled post if a new photo comes in
+    if (scheduledPosts[from]) {
+      clearTimeout(scheduledPosts[from]);
+      delete scheduledPosts[from];
+      await sendMessage(from, `Got it — I cancelled the scheduled post and I'll use this new photo instead! 🔄`);
+    }
     pendingPhoto[from] = { mediaUrl, mediaContentType };
     setState(from, 'waiting_for_keywords');
     await sendMessage(from, `Love it, ${getName(from)}! 💎 Any keywords or details you want me to highlight?\n\nExamples: "gold cuff", "gift for her", "new arrival", "summer vibes"\n\nOr just say *skip* to go straight to it!`);
