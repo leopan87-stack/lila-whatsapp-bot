@@ -28,6 +28,26 @@ try {
 const captionTTS = fontItalic;
 const taglineTTS = fontTagline;
 
+// Logo watermark — loaded once at startup, resized + 40% opacity
+let logoBuffer = null;
+const logoPath = path.join(__dirname, 'logo.png');
+if (fs.existsSync(logoPath)) {
+  sharp(logoPath)
+    .resize(130, null, { fit: 'inside' })
+    .ensureAlpha()
+    .toBuffer()
+    .then(async buf => {
+      // Apply 40% opacity by multiplying alpha channel
+      const { data, info } = await sharp(buf).raw().toBuffer({ resolveWithObject: true });
+      for (let i = 3; i < data.length; i += 4) data[i] = Math.round(data[i] * 0.4);
+      logoBuffer = await sharp(data, { raw: { width: info.width, height: info.height, channels: 4 } }).png().toBuffer();
+      console.log('✅ Logo watermark loaded (40% opacity, 130px wide)');
+    })
+    .catch(e => console.warn('⚠️ Logo load failed:', e.message));
+} else {
+  console.warn('⚠️ No logo.png found — watermark skipped');
+}
+
 const GOOGLE_AI_KEY = process.env.GOOGLE_AI_KEY;
 
 async function createBrandedImageAI(imageBuffer, captionText, withModel = false) {
@@ -167,8 +187,14 @@ Transform this photo into an editorial Instagram image:
     ${taglines}
   </svg>`);
 
+  const composites = [{ input: textSvg, top: 0, left: 0 }];
+  if (logoBuffer) {
+    const logoMeta = await sharp(logoBuffer).metadata();
+    const logoH = logoMeta.height || 50;
+    composites.push({ input: logoBuffer, top: SIZE - logoH - 40, left: 40 });
+  }
   return await sharp(enhancedBuffer)
-    .composite([{ input: textSvg, top: 0, left: 0 }])
+    .composite(composites)
     .jpeg({ quality: 100 })
     .toBuffer();
 }
@@ -441,9 +467,12 @@ function wrapText(text, charsPerLine, maxLines) {
 
 function buildTaglineAndHandle(SIZE) {
   if (!fontTagline) return '';
-  const tagPath = fontTagline.getPath("MIAMI'S EVERYDAY GOLD", {
-    fontSize: 18, anchor: 'top left', x: 60, y: SIZE - 46,
-    attributes: { fill: 'rgba(255,255,255,0.80)' },
+  const tagText = "MIAMI'S EVERYDAY GOLD";
+  const tagW = fontTagline.getMetrics(tagText, { fontSize: 18 }).width;
+  const tagX = (SIZE - tagW) / 2;
+  const tagPath = fontTagline.getPath(tagText, {
+    fontSize: 18, anchor: 'top left', x: tagX, y: SIZE - 46,
+    attributes: { fill: 'rgba(245,210,133,0.90)' },  // gold color
   });
   const lilaText = '@lilamiami';
   const lilaW = fontTagline.getMetrics(lilaText, { fontSize: 18 }).width;
