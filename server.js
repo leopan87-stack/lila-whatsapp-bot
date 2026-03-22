@@ -163,6 +163,7 @@ async function createBrandedImage(imageBuffer, captionText) {
 
   // Caption text — word wrap
   const clean = stripEmojis(captionText);
+  console.log(`🖊️ Drawing text (${clean.length} chars): "${clean.substring(0, 80)}..."`);
   ctx.font = `38px ${FONT_NAME}`;
   ctx.fillStyle = 'white';
   ctx.textBaseline = 'top';
@@ -286,6 +287,7 @@ async function processPhoto(from, mediaUrl, mediaContentType, caption) {
 
     // Extract short caption for image overlay
     const shortCaption = extractCaption(content);
+    console.log(`📝 Extracted caption: "${shortCaption.substring(0, 100)}..."`);
 
     // Create branded image — fallback to plain resized if canvas fails
     let brandedBuffer;
