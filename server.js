@@ -124,90 +124,71 @@ async function downloadImageBuffer(mediaUrl) {
   return { buffer, contentType };
 }
 
-function escapeXml(str) {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
-}
-
 function stripEmojis(str) {
-  // Keep only printable ASCII characters — guaranteed to render on any server
-  return str
-    .replace(/[^\x20-\x7E]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function wrapText(text, maxChars) {
-  const words = text.split(' ');
-  const lines = [];
-  let current = '';
-  for (const word of words) {
-    if ((current + ' ' + word).trim().length > maxChars) {
-      if (current) lines.push(current.trim());
-      current = word;
-    } else {
-      current = (current + ' ' + word).trim();
-    }
-  }
-  if (current) lines.push(current.trim());
-  return lines;
+  return str.replace(/[^\x20-\x7E]/g, '').replace(/\s+/g, ' ').trim();
 }
 
 async function createBrandedImage(imageBuffer, captionText) {
   const SIZE = 1080;
+  const GRAD_H = 380;
 
-  // Resize image to Instagram square
+  // 1. Resize to Instagram square
   const resized = await sharp(imageBuffer)
     .resize(SIZE, SIZE, { fit: 'cover', position: 'center' })
     .toBuffer();
 
-  // Strip emojis and wrap caption to max 3 lines
-  const cleanCaption = stripEmojis(captionText);
-  const lines = wrapText(cleanCaption, 42).slice(0, 3);
-  const lineHeight = 54;
-  const textAreaHeight = lines.length * lineHeight + 100;
-  const gradientStart = SIZE - textAreaHeight - 40;
+  // 2. Clean caption text
+  const clean = stripEmojis(captionText).substring(0, 160);
 
-  const textElements = lines.map((line, i) => `
-    <text
-      x="50"
-      y="${SIZE - textAreaHeight + 20 + i * lineHeight}"
-      font-family="Roboto, sans-serif"
-      font-size="40"
-      fill="white"
-    >${escapeXml(line)}</text>`).join('');
+  // 3. Dark gradient overlay (pure SVG, no text — this always works)
+  const gradientSvg = Buffer.from(
+    `<svg width="${SIZE}" height="${GRAD_H}" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#000000" stop-opacity="0"/>
+          <stop offset="100%" stop-color="#000000" stop-opacity="0.82"/>
+        </linearGradient>
+      </defs>
+      <rect width="${SIZE}" height="${GRAD_H}" fill="url(#g)"/>
+    </svg>`
+  );
 
-  const fontFace = FONT_BASE64
-    ? `@font-face { font-family: 'Roboto'; src: url('data:font/truetype;base64,${FONT_BASE64}'); }`
-    : '';
+  // 4. Caption text — sharp's native text input using font file directly
+  const captionImg = await sharp({
+    text: {
+      text: clean,
+      fontfile: fontPath,
+      rgba: true,
+      width: SIZE - 100,
+      dpi: 130,
+      wrap: 'word',
+    },
+  }).png().toBuffer();
 
-  const svgOverlay = `<svg width="${SIZE}" height="${SIZE}" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-      <style>${fontFace}</style>
-      <linearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="#000000" stop-opacity="0"/>
-        <stop offset="60%" stop-color="#000000" stop-opacity="0.55"/>
-        <stop offset="100%" stop-color="#000000" stop-opacity="0.82"/>
-      </linearGradient>
-    </defs>
-    <rect x="0" y="${gradientStart}" width="${SIZE}" height="${SIZE - gradientStart}" fill="url(#grad)"/>
-    ${textElements}
-    <text
-      x="50"
-      y="${SIZE - 38}"
-      font-family="Roboto, sans-serif"
-      font-size="32"
-      fill="#D4AF37"
-      letter-spacing="5"
-    >@lilamiami</text>
-  </svg>`;
+  const { height: captionH = 120 } = await sharp(captionImg).metadata();
 
+  // 5. @lilamiami watermark — rendered then tinted gold
+  const watermarkRaw = await sharp({
+    text: {
+      text: '@lilamiami',
+      fontfile: fontPath,
+      rgba: true,
+      dpi: 90,
+    },
+  }).png().toBuffer();
+
+  const watermarkImg = await sharp(watermarkRaw)
+    .tint({ r: 212, g: 175, b: 55 })
+    .png()
+    .toBuffer();
+
+  // 6. Composite all layers
   const branded = await sharp(resized)
-    .composite([{ input: Buffer.from(svgOverlay), blend: 'over' }])
+    .composite([
+      { input: gradientSvg, top: SIZE - GRAD_H, left: 0 },
+      { input: captionImg, top: SIZE - captionH - 90, left: 50 },
+      { input: watermarkImg, top: SIZE - 55, left: 50 },
+    ])
     .jpeg({ quality: 92 })
     .toBuffer();
 
