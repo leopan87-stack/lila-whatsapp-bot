@@ -13,6 +13,7 @@ const { createCanvas, GlobalFonts } = require('@napi-rs/canvas');
 let fontsLoaded = false;
 try {
   GlobalFonts.registerFromPath(path.join(__dirname, 'fonts', 'Cinzel-Regular.ttf'), 'Cinzel');
+  GlobalFonts.registerFromPath(path.join(__dirname, 'fonts', 'BodoniModa-Italic.ttf'), 'Bodoni Moda');
   GlobalFonts.registerFromPath(path.join(__dirname, 'fonts', 'CormorantGaramond-Italic.ttf'), 'Cormorant Garamond');
   GlobalFonts.registerFromPath(path.join(__dirname, 'fonts', 'DMSerifDisplay-Italic.ttf'), 'DM Serif Display');
   GlobalFonts.registerFromPath(path.join(__dirname, 'fonts', 'PlayfairDisplay-Bold.ttf'), 'Playfair Display');
@@ -169,7 +170,7 @@ Transform this photo into an editorial Instagram image:
     ctx.fillRect(0, SIZE - 100, SIZE, 100);
 
     // Caption text
-    ctx.font = '84px "Cinzel"';
+    ctx.font = 'italic 84px "Bodoni Moda"';
     ctx.fillStyle = GOLD;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
@@ -587,7 +588,7 @@ async function createBrandedImage(imageBuffer, captionText) {
       ctx.stroke();
       ctx.globalAlpha = 1;
 
-      ctx.font = '58px "Cinzel"';
+      ctx.font = 'italic 58px "Bodoni Moda"';
       ctx.fillStyle = WHITE;
       ctx.shadowColor = 'rgba(0,0,0,0.8)';
       ctx.shadowBlur = 16;
@@ -786,7 +787,7 @@ async function createVideoTextOverlay(captionText) {
     ctx.fillRect(0, SIZE - 100, SIZE, 100);
 
     // Caption text
-    ctx.font = '84px "Cinzel"';
+    ctx.font = 'italic 84px "Bodoni Moda"';
     ctx.fillStyle = GOLD;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
