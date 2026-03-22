@@ -747,51 +747,89 @@ ffmpeg.setFfmpegPath(ffmpegPath);
 console.log('🎬 ffmpeg-static path:', ffmpegPath);
 const os = require('os');
 
+async function createVideoTextOverlay(captionText) {
+  const SIZE = 1080;
+  const GOLD = '#F5D285';
+
+  // Clean caption — same logic as createBrandedImageAI
+  let clean = stripEmojis(captionText).replace(/\*\*/g, '').replace(/\*/g, '').replace(/#+\s*/g, '').trim();
+  const dot = clean.search(/[.!?]/);
+  if (dot > 10 && dot < 100) clean = clean.substring(0, dot + 1);
+  else { clean = clean.substring(0, 55); const sp = clean.lastIndexOf(' '); if (sp > 15) clean = clean.substring(0, sp) + '...'; }
+  console.log(`🖊️ Video text overlay: "${clean}"`);
+
+  const captionLines = wrapText(clean, 20, 3);
+  const lineH = 88;
+  const captionY = 50;
+
+  let captionPaths = '';
+  captionLines.forEach((line, i) => {
+    if (!fontItalic) return;
+    const metrics = fontItalic.getMetrics(line, { fontSize: 84 });
+    const x = (SIZE - metrics.width) / 2;
+    captionPaths += fontItalic.getPath(line, {
+      fontSize: 84, anchor: 'top left', x, y: captionY + i * lineH,
+      attributes: { fill: GOLD, filter: 'url(#ts)' },
+    });
+  });
+
+  const taglines = fontTagline ? buildTaglineAndHandle(SIZE) : '';
+
+  const textSvg = Buffer.from(`<svg width="${SIZE}" height="${SIZE}" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="gt" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="black" stop-opacity="0.80"/>
+        <stop offset="100%" stop-color="black" stop-opacity="0"/>
+      </linearGradient>
+      <linearGradient id="gb" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="black" stop-opacity="0"/>
+        <stop offset="100%" stop-color="black" stop-opacity="0.75"/>
+      </linearGradient>
+      <filter id="ts" x="-10%" y="-20%" width="130%" height="160%">
+        <feDropShadow dx="1" dy="2" stdDeviation="2" flood-color="black" flood-opacity="0.95"/>
+      </filter>
+    </defs>
+    <rect x="0" y="0" width="${SIZE}" height="260" fill="url(#gt)"/>
+    <rect x="0" y="${SIZE - 100}" width="${SIZE}" height="100" fill="url(#gb)"/>
+    ${captionPaths}
+    ${taglines}
+  </svg>`);
+
+  // Build transparent PNG: SVG text + logo watermark
+  const composites = [{ input: textSvg, top: 0, left: 0 }];
+  if (logoBuffer) {
+    const logoMeta = await sharp(logoBuffer).metadata();
+    const logoW = logoMeta.width || 160;
+    const logoH = logoMeta.height || 50;
+    composites.push({ input: logoBuffer, top: SIZE - logoH - 28, left: SIZE - logoW - 35 });
+  }
+
+  return await sharp({
+    create: { width: SIZE, height: SIZE, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+  })
+    .composite(composites)
+    .png()
+    .toBuffer();
+}
+
 async function editVideo(videoBuffer, captionText) {
-  const tmpIn  = path.join(os.tmpdir(), `lila_in_${Date.now()}.mp4`);
-  const tmpOut = path.join(os.tmpdir(), `lila_out_${Date.now()}.mp4`);
+  const tmpIn      = path.join(os.tmpdir(), `lila_in_${Date.now()}.mp4`);
+  const tmpOverlay = path.join(os.tmpdir(), `lila_ovr_${Date.now()}.png`);
+  const tmpOut     = path.join(os.tmpdir(), `lila_out_${Date.now()}.mp4`);
 
   fs.writeFileSync(tmpIn, videoBuffer);
 
-  // Clean caption for FFmpeg drawtext (escape special chars)
-  let clean = stripEmojis(captionText).replace(/\*\*/g,'').replace(/\*/g,'').replace(/#+\s*/g,'').trim();
-  const dot = clean.search(/[.!?]/);
-  if (dot > 10 && dot < 100) clean = clean.substring(0, dot + 1);
-  else { clean = clean.substring(0, 50); const sp = clean.lastIndexOf(' '); if (sp > 15) clean = clean.substring(0, sp); }
-  // FFmpeg drawtext escaping: ' → '\'' and : → \:
-  const ffCaption  = clean.replace(/'/g, "\u2019").replace(/:/g, '\\:');
-  const ffTagline  = "MIAMI'S EVERYDAY GOLD".replace(/'/g, "\u2019");
-
-  const fontCaption = path.join(__dirname, 'fonts', 'PlayfairDisplay-Italic.ttf');
-  const fontTagline = path.join(__dirname, 'fonts', 'Roboto-Regular.ttf');
-  const logoFile    = path.join(__dirname, 'logo.png');
-  const hasLogo     = fs.existsSync(logoFile);
-
-  // Build filter graph
-  const baseFilters = [
-    'scale=1080:1080:force_original_aspect_ratio=increase',
-    'crop=1080:1080',
-    'eq=saturation=1.12:brightness=0.03:contrast=1.04',
-    // Top caption — gold italic
-    `drawtext=fontfile='${fontCaption}':text='${ffCaption}':fontsize=82:fontcolor=0xF5D285:x=(w-text_w)/2:y=50:shadowx=1:shadowy=2:shadowcolor=0x000000@0.9`,
-    // Bottom tagline — gold centered
-    `drawtext=fontfile='${fontTagline}':text='${ffTagline}':fontsize=18:fontcolor=0xF5D285E6:x=(w-text_w)/2:y=h-46`,
-  ].join(',');
+  // Create PNG overlay — no FFmpeg escaping needed, handles any text
+  const overlayBuffer = await createVideoTextOverlay(captionText);
+  fs.writeFileSync(tmpOverlay, overlayBuffer);
 
   await new Promise((resolve, reject) => {
-    let cmd = ffmpeg(tmpIn);
-
-    if (hasLogo) {
-      cmd = cmd.input(logoFile)
-        .complexFilter(
-          `[0:v]${baseFilters}[base];[base][1:v]overlay=W-w-35:H-h-28[out]`,
-          'out'
-        );
-    } else {
-      cmd = cmd.videoFilters(baseFilters);
-    }
-
-    cmd
+    ffmpeg(tmpIn)
+      .input(tmpOverlay)
+      .complexFilter(
+        '[0:v]scale=1080:1080:force_original_aspect_ratio=increase,crop=1080:1080,eq=saturation=1.12:brightness=0.03:contrast=1.04[base];[base][1:v]overlay=0:0[out]',
+        'out'
+      )
       .outputOptions(['-c:v libx264', '-crf 23', '-preset fast', '-c:a aac', '-movflags +faststart'])
       .output(tmpOut)
       .on('end', resolve)
@@ -800,8 +838,9 @@ async function editVideo(videoBuffer, captionText) {
   });
 
   const outBuffer = fs.readFileSync(tmpOut);
-  fs.unlinkSync(tmpIn);
-  fs.unlinkSync(tmpOut);
+  try { fs.unlinkSync(tmpIn); } catch (e) {}
+  try { fs.unlinkSync(tmpOverlay); } catch (e) {}
+  try { fs.unlinkSync(tmpOut); } catch (e) {}
   console.log(`✅ Video edited: ${outBuffer.length} bytes`);
   return outBuffer;
 }
