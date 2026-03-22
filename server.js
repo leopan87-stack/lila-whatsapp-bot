@@ -11,8 +11,14 @@ const { createCanvas, loadImage, GlobalFonts } = require('@napi-rs/canvas');
 
 // Register font at startup
 const fontPath = path.join(__dirname, 'fonts', 'Roboto-Regular.ttf');
-const FONT_NAME = fs.existsSync(fontPath) && GlobalFonts.registerFromPath(fontPath, 'Roboto') ? 'Roboto' : 'sans-serif';
-console.log(`✅ Using font: ${FONT_NAME}`);
+let FONT_NAME = 'sans-serif';
+if (fs.existsSync(fontPath)) {
+  GlobalFonts.registerFromPath(fontPath, 'Roboto');
+  FONT_NAME = 'Roboto';
+  console.log('✅ Roboto font registered');
+} else {
+  console.warn('⚠️ Font file missing, using sans-serif');
+}
 
 const app = express();
 app.use(express.urlencoded({ extended: false }));
@@ -253,6 +259,18 @@ One actionable tip to boost engagement for this specific photo (lighting, story 
   return response.content[0].text;
 }
 
+function splitMessage(text, maxLen = 1500) {
+  const chunks = [];
+  while (text.length > maxLen) {
+    let splitAt = text.lastIndexOf('\n', maxLen);
+    if (splitAt < 100) splitAt = maxLen;
+    chunks.push(text.substring(0, splitAt).trim());
+    text = text.substring(splitAt).trim();
+  }
+  if (text) chunks.push(text);
+  return chunks;
+}
+
 async function processPhoto(from, mediaUrl, mediaContentType, caption) {
   if (processing.has(from)) return; // ignore duplicate webhook
   processing.add(from);
@@ -266,26 +284,36 @@ async function processPhoto(from, mediaUrl, mediaContentType, caption) {
     const content = await generateContent(base64, contentType, caption);
     lastContent[from] = content;
 
-    // Extract caption for image overlay
+    // Extract short caption for image overlay
     const shortCaption = extractCaption(content);
 
-    // Create branded image
-    const brandedBuffer = await createBrandedImage(buffer, shortCaption);
+    // Create branded image — fallback to plain resized if canvas fails
+    let brandedBuffer;
+    try {
+      brandedBuffer = await createBrandedImage(buffer, shortCaption);
+    } catch (imgErr) {
+      console.error('⚠️ Canvas failed, using plain image:', imgErr.message);
+      brandedBuffer = await sharp(buffer)
+        .resize(1080, 1080, { fit: 'cover', position: 'center' })
+        .jpeg({ quality: 92 })
+        .toBuffer();
+    }
 
     // Upload to ImgBB
     const imageUrl = await uploadToImgBB(brandedBuffer);
-
     setState(from, 'waiting_for_approval');
 
-    // Send branded image first
+    // Send branded image
     await sendImageMessage(from, imageUrl, '💎 Here\'s your branded Instagram post:');
 
-    // Then send full text content
-    await sendMessage(from, content);
-    await sendMessage(from, '---\nReply *YES* to confirm ✅\nReply *RECREATE* for a different version 🔄\nReply *NO* to cancel ❌');
+    // Send content split into chunks (Twilio 1600 char limit)
+    for (const chunk of splitMessage(content)) {
+      await sendMessage(from, chunk);
+    }
+    await sendMessage(from, '---\nReply *YES* ✅  |  *RECREATE* 🔄  |  *NO* ❌');
 
   } catch (err) {
-    console.error('❌ Error generating content:', err.message);
+    console.error('❌ Error:', err.message);
     await sendMessage(from, 'Something went wrong. Try sending the photo again! 🙏');
     setState(from, 'waiting_for_photo');
   } finally {
