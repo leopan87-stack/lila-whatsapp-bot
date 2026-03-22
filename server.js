@@ -8,23 +8,19 @@ const sharp = require('sharp');
 const fs = require('fs');
 const path = require('path');
 const Jimp = require('jimp');
-const TextToSVG = require('text-to-svg');
+const { createCanvas, GlobalFonts } = require('@napi-rs/canvas');
 
-let fontItalic = null;
-let fontBold = null;
-let fontScript = null;
-let fontTagline = null;
+let fontsLoaded = false;
 try {
-  fontItalic  = TextToSVG.loadSync(path.join(__dirname, 'fonts', 'DMSerifDisplay-Italic.ttf'));
-  fontBold    = TextToSVG.loadSync(path.join(__dirname, 'fonts', 'PlayfairDisplay-Bold.ttf'));
-  fontScript  = TextToSVG.loadSync(path.join(__dirname, 'fonts', 'DancingScript-Bold.ttf'));
-  fontTagline = TextToSVG.loadSync(path.join(__dirname, 'fonts', 'Roboto-Regular.ttf'));
-  console.log('✅ Fonts loaded via text-to-svg');
+  GlobalFonts.registerFromPath(path.join(__dirname, 'fonts', 'DMSerifDisplay-Italic.ttf'), 'DM Serif Display');
+  GlobalFonts.registerFromPath(path.join(__dirname, 'fonts', 'PlayfairDisplay-Bold.ttf'), 'Playfair Display');
+  GlobalFonts.registerFromPath(path.join(__dirname, 'fonts', 'DancingScript-Bold.ttf'), 'Dancing Script');
+  GlobalFonts.registerFromPath(path.join(__dirname, 'fonts', 'Roboto-Regular.ttf'), 'Roboto');
+  fontsLoaded = true;
+  console.log('✅ Fonts loaded via @napi-rs/canvas');
 } catch (e) {
   console.warn('⚠️ Font load failed:', e.message);
 }
-
-function getFontDefs() { return ''; }
 
 function escapeXml(str) {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -155,40 +151,40 @@ Transform this photo into an editorial Instagram image:
   const lineH = 88;
   const captionY = 50;
 
-  let captionPaths = '';
-  captionLines.forEach((line, i) => {
-    if (!fontItalic) return;
-    const metrics = fontItalic.getMetrics(line, { fontSize: 84 });
-    const x = (SIZE - metrics.width) / 2;
-    captionPaths += fontItalic.getPath(line, {
-      fontSize: 84, anchor: 'top left', x, y: captionY + i * lineH,
-      attributes: { fill: GOLD, filter: 'url(#ts)' },
+  const overlayPng = await createCanvasOverlay(SIZE, (ctx) => {
+    // Top gradient
+    const topGrad = ctx.createLinearGradient(0, 0, 0, 260);
+    topGrad.addColorStop(0, 'rgba(0,0,0,0.80)');
+    topGrad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = topGrad;
+    ctx.fillRect(0, 0, SIZE, 260);
+
+    // Bottom gradient
+    const botGrad = ctx.createLinearGradient(0, SIZE - 100, 0, SIZE);
+    botGrad.addColorStop(0, 'rgba(0,0,0,0)');
+    botGrad.addColorStop(1, 'rgba(0,0,0,0.75)');
+    ctx.fillStyle = botGrad;
+    ctx.fillRect(0, SIZE - 100, SIZE, 100);
+
+    // Caption text
+    ctx.font = 'italic 84px "DM Serif Display"';
+    ctx.fillStyle = GOLD;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.shadowColor = 'rgba(0,0,0,0.95)';
+    ctx.shadowBlur = 8;
+    ctx.shadowOffsetX = 1;
+    ctx.shadowOffsetY = 2;
+    captionLines.forEach((line, i) => {
+      ctx.fillText(line, SIZE / 2, captionY + i * lineH);
     });
+
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    drawTagline(ctx, SIZE);
   });
 
-  const taglines = buildTaglineAndHandle(SIZE);
-
-  const textSvg = Buffer.from(`<svg width="${SIZE}" height="${SIZE}" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-      <linearGradient id="gt" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="black" stop-opacity="0.80"/>
-        <stop offset="100%" stop-color="black" stop-opacity="0"/>
-      </linearGradient>
-      <linearGradient id="gb" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="black" stop-opacity="0"/>
-        <stop offset="100%" stop-color="black" stop-opacity="0.75"/>
-      </linearGradient>
-      <filter id="ts" x="-10%" y="-20%" width="130%" height="160%">
-        <feDropShadow dx="1" dy="2" stdDeviation="2" flood-color="black" flood-opacity="0.95"/>
-      </filter>
-    </defs>
-    <rect x="0" y="0" width="${SIZE}" height="260" fill="url(#gt)"/>
-    <rect x="0" y="${SIZE - 100}" width="${SIZE}" height="100" fill="url(#gb)"/>
-    ${captionPaths}
-    ${taglines}
-  </svg>`);
-
-  const composites = [{ input: textSvg, top: 0, left: 0 }];
+  const composites = [{ input: overlayPng, top: 0, left: 0 }];
   if (logoBuffer) {
     const logoMeta = await sharp(logoBuffer).metadata();
     const logoW = logoMeta.width || 160;
@@ -208,10 +204,8 @@ app.use(express.json());
 // Test endpoint — check which fonts are loaded
 app.get('/test-fonts', (req, res) => {
   res.json({
-    fontItalic: fontItalic ? 'loaded' : 'NULL',
-    fontBold: fontBold ? 'loaded' : 'NULL',
-    fontScript: fontScript ? 'loaded' : 'NULL',
-    fontTagline: fontTagline ? 'loaded' : 'NULL',
+    fontsLoaded: fontsLoaded ? 'loaded' : 'NULL',
+    engine: '@napi-rs/canvas',
   });
 });
 
@@ -483,15 +477,23 @@ function wrapText(text, charsPerLine, maxLines) {
   return lines;
 }
 
-function buildTaglineAndHandle(SIZE) {
-  if (!fontTagline) return '';
-  const tagText = "MIAMI'S EVERYDAY GOLD";
-  const tagW = fontTagline.getMetrics(tagText, { fontSize: 18 }).width;
-  const tagX = (SIZE - tagW) / 2;
-  return fontTagline.getPath(tagText, {
-    fontSize: 18, anchor: 'top left', x: tagX, y: SIZE - 46,
-    attributes: { fill: 'rgba(245,210,133,0.90)' },
-  });
+function drawTagline(ctx, SIZE) {
+  ctx.save();
+  ctx.font = '18px "Roboto"';
+  ctx.fillStyle = 'rgba(245,210,133,0.90)';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.shadowColor = 'transparent';
+  ctx.shadowBlur = 0;
+  ctx.fillText("MIAMI'S EVERYDAY GOLD", SIZE / 2, SIZE - 46);
+  ctx.restore();
+}
+
+async function createCanvasOverlay(SIZE, drawFn) {
+  const canvas = createCanvas(SIZE, SIZE);
+  const ctx = canvas.getContext('2d');
+  drawFn(ctx);
+  return canvas.toBuffer('image/png');
 }
 
 async function createBrandedImage(imageBuffer, captionText) {
@@ -533,7 +535,7 @@ async function createBrandedImage(imageBuffer, captionText) {
   // Pick layout style — rotate every post
   const style = Math.floor(Date.now() / 1000) % 3;
 
-  if (!fontBold || !fontItalic || !fontScript || !fontTagline) {
+  if (!fontsLoaded) {
     const image = await Jimp.read(baseBuffer);
     const font64 = await Jimp.loadFont(Jimp.FONT_SANS_64_WHITE);
     const font16 = await Jimp.loadFont(Jimp.FONT_SANS_16_WHITE);
@@ -542,142 +544,153 @@ async function createBrandedImage(imageBuffer, captionText) {
     return await image.getBufferAsync(Jimp.MIME_JPEG);
   }
 
-  let textSvgStr = '';
+  const overlayPng = await createCanvasOverlay(SIZE, (ctx) => {
+    if (style === 0) {
+      // ── STYLE 1: Bold impact word top-left + italic caption bottom ──
+      const impactWord = clean.split(' ')[0].replace(/[.,!?]/, '').toUpperCase();
+      const restWords = clean.split(' ').slice(1).join(' ');
+      const restLines = wrapText(restWords, 24, 3);
 
-  if (style === 0) {
-    // ── STYLE 1: Bold impact word top-left + italic caption bottom ──
-    const impactWord = clean.split(' ')[0].replace(/[.,!?]/, '').toUpperCase();
-    const restWords = clean.split(' ').slice(1).join(' ');
-    const restLines = wrapText(restWords, 24, 3);
+      const topGrad = ctx.createLinearGradient(0, 240, 0, 0);
+      topGrad.addColorStop(0, 'rgba(0,0,0,0)');
+      topGrad.addColorStop(1, 'rgba(0,0,0,0.5)');
+      ctx.fillStyle = topGrad;
+      ctx.fillRect(0, 0, SIZE, 240);
 
-    const impactPath = fontBold.getPath(impactWord, {
-      fontSize: 130, anchor: 'top left', x: 55, y: 60,
-      attributes: { fill: GOLD, filter: 'url(#ts)' },
-    });
-    const impactW = fontBold.getMetrics(impactWord, { fontSize: 130 }).width;
-    const accentLine = `<line x1="55" y1="200" x2="${Math.min(55 + impactW, SIZE - 60)}" y2="200" stroke="${GOLD}" stroke-width="2" opacity="0.6"/>`;
+      const botGrad = ctx.createLinearGradient(0, SIZE - 430, 0, SIZE);
+      botGrad.addColorStop(0, 'rgba(0,0,0,0)');
+      botGrad.addColorStop(1, 'rgba(0,0,0,0.85)');
+      ctx.fillStyle = botGrad;
+      ctx.fillRect(0, SIZE - 430, SIZE, 430);
 
-    let restPaths = '';
-    restLines.forEach((line, i) => {
-      restPaths += fontItalic.getPath(line, {
-        fontSize: 58, anchor: 'top left', x: 60, y: SIZE - 200 - (restLines.length - 1 - i) * 68,
-        attributes: { fill: WHITE, filter: 'url(#ts)' },
+      ctx.font = 'bold 130px "Playfair Display"';
+      ctx.fillStyle = GOLD;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.shadowColor = 'rgba(0,0,0,0.8)';
+      ctx.shadowBlur = 16;
+      ctx.shadowOffsetX = 1;
+      ctx.shadowOffsetY = 2;
+      ctx.fillText(impactWord, 55, 60);
+
+      const impactW = ctx.measureText(impactWord).width;
+      ctx.shadowColor = 'transparent';
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = GOLD;
+      ctx.globalAlpha = 0.6;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(55, 200);
+      ctx.lineTo(Math.min(55 + impactW, SIZE - 60), 200);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+
+      ctx.font = 'italic 58px "DM Serif Display"';
+      ctx.fillStyle = WHITE;
+      ctx.shadowColor = 'rgba(0,0,0,0.8)';
+      ctx.shadowBlur = 16;
+      ctx.shadowOffsetX = 1;
+      ctx.shadowOffsetY = 2;
+      restLines.forEach((line, i) => {
+        ctx.fillText(line, 60, SIZE - 200 - (restLines.length - 1 - i) * 68);
       });
-    });
 
-    textSvgStr = `
-      <defs>
-        <linearGradient id="gt" x1="0" y1="1" x2="0" y2="0">
-          <stop offset="0%" stop-color="black" stop-opacity="0"/>
-          <stop offset="40%" stop-color="black" stop-opacity="0.5"/>
-        </linearGradient>
-        <linearGradient id="gb" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="black" stop-opacity="0"/>
-          <stop offset="100%" stop-color="black" stop-opacity="0.85"/>
-        </linearGradient>
-        <filter id="ts" x="-5%" y="-10%" width="120%" height="140%">
-          <feDropShadow dx="1" dy="2" stdDeviation="4" flood-color="black" flood-opacity="0.8"/>
-        </filter>
-      </defs>
-      <rect x="0" y="0" width="${SIZE}" height="240" fill="url(#gt)"/>
-      <rect x="0" y="${SIZE - 430}" width="${SIZE}" height="430" fill="url(#gb)"/>
-      ${impactPath}
-      ${accentLine}
-      ${restPaths}
-      ${buildTaglineAndHandle(SIZE)}`;
+      ctx.shadowColor = 'transparent';
+      ctx.shadowBlur = 0;
+      drawTagline(ctx, SIZE);
 
-  } else if (style === 1) {
-    // ── STYLE 2: Centered script + bold — editorial center block ──
-    const scriptLines = wrapText(clean, 20, 2);
-    const centerY = SIZE / 2 - (scriptLines.length * 80) / 2;
+    } else if (style === 1) {
+      // ── STYLE 2: Centered script — editorial center block ──
+      const scriptLines = wrapText(clean, 20, 2);
+      const centerY = SIZE / 2 - (scriptLines.length * 80) / 2;
 
-    let scriptPaths = '';
-    scriptLines.forEach((line, i) => {
-      const metrics = fontScript.getMetrics(line, { fontSize: 88 });
-      const x = (SIZE - metrics.width) / 2;
-      scriptPaths += fontScript.getPath(line, {
-        fontSize: 88, anchor: 'top left', x, y: centerY + i * 100,
-        attributes: { fill: GOLD, filter: 'url(#ts)' },
+      const radGrad = ctx.createRadialGradient(SIZE / 2, SIZE / 2, 0, SIZE / 2, SIZE / 2, SIZE * 0.5);
+      radGrad.addColorStop(0, 'rgba(0,0,0,0.2)');
+      radGrad.addColorStop(1, 'rgba(0,0,0,0.75)');
+      ctx.fillStyle = radGrad;
+      ctx.fillRect(0, 0, SIZE, SIZE);
+
+      const botGrad = ctx.createLinearGradient(0, SIZE - 300, 0, SIZE);
+      botGrad.addColorStop(0, 'rgba(0,0,0,0)');
+      botGrad.addColorStop(1, 'rgba(0,0,0,0.80)');
+      ctx.fillStyle = botGrad;
+      ctx.fillRect(0, SIZE - 300, SIZE, 300);
+
+      const pad = 40;
+      ctx.strokeStyle = GOLD;
+      ctx.globalAlpha = 0.5;
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(pad, pad, SIZE - pad * 2, SIZE - pad * 2);
+      ctx.globalAlpha = 1;
+
+      ctx.font = 'bold 88px "Dancing Script"';
+      ctx.fillStyle = GOLD;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.shadowColor = 'rgba(0,0,0,0.8)';
+      ctx.shadowBlur = 16;
+      ctx.shadowOffsetX = 1;
+      ctx.shadowOffsetY = 2;
+      scriptLines.forEach((line, i) => {
+        ctx.fillText(line, SIZE / 2, centerY + i * 100);
       });
-    });
 
-    const pad = 40;
-    const frame = `<rect x="${pad}" y="${pad}" width="${SIZE - pad * 2}" height="${SIZE - pad * 2}" fill="none" stroke="${GOLD}" stroke-width="1.5" opacity="0.5"/>`;
+      ctx.shadowColor = 'transparent';
+      ctx.shadowBlur = 0;
+      drawTagline(ctx, SIZE);
 
-    textSvgStr = `
-      <defs>
-        <radialGradient id="gc" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stop-color="black" stop-opacity="0.2"/>
-          <stop offset="100%" stop-color="black" stop-opacity="0.75"/>
-        </radialGradient>
-        <linearGradient id="gb" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="black" stop-opacity="0"/>
-          <stop offset="100%" stop-color="black" stop-opacity="0.80"/>
-        </linearGradient>
-        <filter id="ts" x="-5%" y="-10%" width="120%" height="140%">
-          <feDropShadow dx="1" dy="2" stdDeviation="4" flood-color="black" flood-opacity="0.8"/>
-        </filter>
-      </defs>
-      <rect width="${SIZE}" height="${SIZE}" fill="url(#gc)"/>
-      <rect x="0" y="${SIZE - 300}" width="${SIZE}" height="300" fill="url(#gb)"/>
-      ${frame}
-      ${scriptPaths}
-      ${buildTaglineAndHandle(SIZE)}`;
+    } else {
+      // ── STYLE 3: Full bottom dark panel — bold large + script small ──
+      const boldLines = wrapText(clean, 18, 2);
+      const panelH = 360;
+      const boldY = SIZE - panelH + 40;
 
-  } else {
-    // ── STYLE 3: Full bottom dark panel — bold large + script small ──
-    const boldLines = wrapText(clean, 18, 2);
-    const panelH = 360;
-    const boldY = SIZE - panelH + 40;
+      const panelGrad = ctx.createLinearGradient(0, SIZE - panelH, 0, SIZE);
+      panelGrad.addColorStop(0, 'rgba(0,0,0,0)');
+      panelGrad.addColorStop(1, 'rgba(0,0,0,0.92)');
+      ctx.fillStyle = panelGrad;
+      ctx.fillRect(0, SIZE - panelH, SIZE, panelH);
 
-    let boldPaths = '';
-    boldLines.forEach((line, i) => {
-      boldPaths += fontBold.getPath(line, {
-        fontSize: 82, anchor: 'top left', x: 60, y: boldY + i * 96,
-        attributes: { fill: GOLD, filter: 'url(#ts)' },
+      ctx.strokeStyle = GOLD;
+      ctx.globalAlpha = 0.7;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(60, boldY - 16);
+      ctx.lineTo(200, boldY - 16);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+
+      ctx.font = 'bold 82px "Playfair Display"';
+      ctx.fillStyle = GOLD;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.shadowColor = 'rgba(0,0,0,0.8)';
+      ctx.shadowBlur = 16;
+      ctx.shadowOffsetX = 1;
+      ctx.shadowOffsetY = 2;
+      boldLines.forEach((line, i) => {
+        ctx.fillText(line, 60, boldY + i * 96);
       });
-    });
 
-    const scriptAccent = fontScript.getPath('everyday gold.', {
-      fontSize: 52, anchor: 'top left', x: 62, y: boldY + boldLines.length * 96 + 8,
-      attributes: { fill: 'rgba(255,255,255,0.75)', filter: 'url(#ts)' },
-    });
+      ctx.font = 'bold 52px "Dancing Script"';
+      ctx.fillStyle = 'rgba(255,255,255,0.75)';
+      ctx.fillText('everyday gold.', 62, boldY + boldLines.length * 96 + 8);
 
-    const lilaText = '@lilamiami';
-    const lilaW = fontTagline.getMetrics(lilaText, { fontSize: 18 }).width;
-    const lilaPath = fontTagline.getPath(lilaText, {
-      fontSize: 18, anchor: 'top left', x: SIZE - 60 - lilaW, y: SIZE - 46,
-      attributes: { fill: 'rgba(255,255,255,0.80)' },
-    });
-    const tagPath = fontTagline.getPath("MIAMI'S EVERYDAY GOLD", {
-      fontSize: 18, anchor: 'top left', x: 60, y: SIZE - 46,
-      attributes: { fill: 'rgba(255,255,255,0.80)' },
-    });
+      ctx.shadowColor = 'transparent';
+      ctx.shadowBlur = 0;
 
-    const accentLine = `<line x1="60" y1="${boldY - 16}" x2="200" y2="${boldY - 16}" stroke="${GOLD}" stroke-width="1.5" opacity="0.7"/>`;
-
-    textSvgStr = `
-      <defs>
-        <linearGradient id="gb" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="black" stop-opacity="0"/>
-          <stop offset="100%" stop-color="black" stop-opacity="0.92"/>
-        </linearGradient>
-        <filter id="ts" x="-5%" y="-10%" width="120%" height="140%">
-          <feDropShadow dx="1" dy="2" stdDeviation="4" flood-color="black" flood-opacity="0.8"/>
-        </filter>
-      </defs>
-      <rect x="0" y="${SIZE - panelH}" width="${SIZE}" height="${panelH}" fill="url(#gb)"/>
-      ${accentLine}
-      ${boldPaths}
-      ${scriptAccent}
-      ${tagPath}
-      ${lilaPath}`;
-  }
-
-  const textSvg = Buffer.from(`<svg width="${SIZE}" height="${SIZE}" xmlns="http://www.w3.org/2000/svg">${textSvgStr}</svg>`);
+      ctx.font = '18px "Roboto"';
+      ctx.fillStyle = 'rgba(255,255,255,0.80)';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.fillText("MIAMI'S EVERYDAY GOLD", 60, SIZE - 46);
+      ctx.textAlign = 'right';
+      ctx.fillText('@lilamiami', SIZE - 60, SIZE - 46);
+    }
+  });
 
   return await sharp(baseBuffer)
-    .composite([{ input: textSvg, top: 0, left: 0 }])
+    .composite([{ input: overlayPng, top: 0, left: 0 }])
     .jpeg({ quality: 95 })
     .toBuffer();
 }
@@ -755,36 +768,41 @@ async function createVideoTextOverlay(captionText) {
   const lineH = 88;
   const captionBaseY = 118;
 
-  let captionElems = '';
-  captionLines.forEach((line, i) => {
-    captionElems += `<text font-family="DM Serif Display" font-style="italic" font-size="84" fill="${GOLD}" x="${SIZE / 2}" y="${captionBaseY + i * lineH}" text-anchor="middle" filter="url(#ts)">${escapeXml(line)}</text>`;
+  const overlayPng = await createCanvasOverlay(SIZE, (ctx) => {
+    // Top gradient
+    const topGrad = ctx.createLinearGradient(0, 0, 0, 260);
+    topGrad.addColorStop(0, 'rgba(0,0,0,0.80)');
+    topGrad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = topGrad;
+    ctx.fillRect(0, 0, SIZE, 260);
+
+    // Bottom gradient
+    const botGrad = ctx.createLinearGradient(0, SIZE - 100, 0, SIZE);
+    botGrad.addColorStop(0, 'rgba(0,0,0,0)');
+    botGrad.addColorStop(1, 'rgba(0,0,0,0.75)');
+    ctx.fillStyle = botGrad;
+    ctx.fillRect(0, SIZE - 100, SIZE, 100);
+
+    // Caption text
+    ctx.font = 'italic 84px "DM Serif Display"';
+    ctx.fillStyle = GOLD;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.shadowColor = 'rgba(0,0,0,0.95)';
+    ctx.shadowBlur = 8;
+    ctx.shadowOffsetX = 1;
+    ctx.shadowOffsetY = 2;
+    captionLines.forEach((line, i) => {
+      ctx.fillText(line, SIZE / 2, captionBaseY + i * lineH);
+    });
+
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    drawTagline(ctx, SIZE);
   });
 
-  const taglines = buildTaglineAndHandle(SIZE);
-
-  const textSvg = Buffer.from(`<svg width="${SIZE}" height="${SIZE}" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-      ${getFontDefs()}
-      <linearGradient id="gt" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="black" stop-opacity="0.80"/>
-        <stop offset="100%" stop-color="black" stop-opacity="0"/>
-      </linearGradient>
-      <linearGradient id="gb" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="black" stop-opacity="0"/>
-        <stop offset="100%" stop-color="black" stop-opacity="0.75"/>
-      </linearGradient>
-      <filter id="ts" x="-10%" y="-20%" width="130%" height="160%">
-        <feDropShadow dx="1" dy="2" stdDeviation="2" flood-color="black" flood-opacity="0.95"/>
-      </filter>
-    </defs>
-    <rect x="0" y="0" width="${SIZE}" height="260" fill="url(#gt)"/>
-    <rect x="0" y="${SIZE - 100}" width="${SIZE}" height="100" fill="url(#gb)"/>
-    ${captionPaths}
-    ${taglines}
-  </svg>`);
-
-  // Build transparent PNG: SVG text + logo watermark
-  const composites = [{ input: textSvg, top: 0, left: 0 }];
+  // Composite logo onto overlay
+  const composites = [{ input: overlayPng, top: 0, left: 0 }];
   if (logoBuffer) {
     const logoMeta = await sharp(logoBuffer).metadata();
     const logoW = logoMeta.width || 160;
