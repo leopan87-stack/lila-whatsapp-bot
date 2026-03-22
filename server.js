@@ -7,18 +7,8 @@ const axios = require('axios');
 const sharp = require('sharp');
 const fs = require('fs');
 const path = require('path');
-const { createCanvas, loadImage, GlobalFonts } = require('@napi-rs/canvas');
-
-// Register font at startup
-const fontPath = path.join(__dirname, 'fonts', 'Roboto-Regular.ttf');
-let FONT_NAME = 'sans-serif';
-if (fs.existsSync(fontPath)) {
-  GlobalFonts.registerFromPath(fontPath, 'Roboto');
-  FONT_NAME = 'Roboto';
-  console.log('✅ Roboto font registered');
-} else {
-  console.warn('⚠️ Font file missing, using sans-serif');
-}
+const Jimp = require('jimp');
+console.log('✅ Jimp loaded');
 
 const app = express();
 app.use(express.urlencoded({ extended: false }));
@@ -140,66 +130,41 @@ function stripEmojis(str) {
 async function createBrandedImage(imageBuffer, captionText) {
   const SIZE = 1080;
 
-  // Resize source image to square using sharp
+  // Resize to square
   const resizedBuffer = await sharp(imageBuffer)
     .resize(SIZE, SIZE, { fit: 'cover', position: 'center' })
-    .jpeg()
+    .jpeg({ quality: 95 })
     .toBuffer();
 
-  // Load into canvas
-  const img = await loadImage(resizedBuffer);
-  const canvas = createCanvas(SIZE, SIZE);
-  const ctx = canvas.getContext('2d');
+  const image = await Jimp.read(resizedBuffer);
 
-  // Draw photo
-  ctx.drawImage(img, 0, 0, SIZE, SIZE);
-
-  // Dark gradient at bottom
-  const gradient = ctx.createLinearGradient(0, SIZE - 400, 0, SIZE);
-  gradient.addColorStop(0, 'rgba(0,0,0,0)');
-  gradient.addColorStop(1, 'rgba(0,0,0,0.85)');
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, SIZE - 400, SIZE, 400);
-
-  // Caption text — word wrap
-  const clean = stripEmojis(captionText);
-  console.log(`🖊️ Drawing text (${clean.length} chars): "${clean.substring(0, 80)}..."`);
-  ctx.font = `38px ${FONT_NAME}`;
-  ctx.fillStyle = 'white';
-  ctx.textBaseline = 'top';
-
-  // Use character-count wrap (reliable even if measureText returns 0)
-  const words = clean.split(' ');
-  const lines = [];
-  let currentLine = '';
-  const MAX_CHARS = 36;
-  for (const word of words) {
-    const test = currentLine ? currentLine + ' ' + word : word;
-    if (test.length > MAX_CHARS) {
-      if (currentLine) lines.push(currentLine);
-      currentLine = word;
-      if (lines.length >= 2) break;
-    } else {
-      currentLine = test;
+  // Dark gradient overlay at bottom
+  const GRAD_START = SIZE - 320;
+  for (let y = GRAD_START; y < SIZE; y++) {
+    const opacity = (y - GRAD_START) / (SIZE - GRAD_START); // 0 to 1
+    for (let x = 0; x < SIZE; x++) {
+      const pixel = image.getPixelColor(x, y);
+      const r = Math.round(((pixel >>> 24) & 0xff) * (1 - opacity * 0.85));
+      const g = Math.round(((pixel >>> 16) & 0xff) * (1 - opacity * 0.85));
+      const b = Math.round(((pixel >>> 8)  & 0xff) * (1 - opacity * 0.85));
+      image.setPixelColor(Jimp.rgbaToInt(r, g, b, 255), x, y);
     }
   }
-  if (currentLine && lines.length < 3) lines.push(currentLine);
-  console.log(`📐 Lines to draw: ${JSON.stringify(lines)}`);
 
-  const lineHeight = 52;
-  const totalH = lines.length * lineHeight;
-  let textY = SIZE - totalH - 70;
-  for (const line of lines) {
-    ctx.fillText(line, 50, textY);
-    textY += lineHeight;
-  }
+  // Load built-in white font for caption
+  const font32 = await Jimp.loadFont(Jimp.FONT_SANS_32_WHITE);
+  const font16 = await Jimp.loadFont(Jimp.FONT_SANS_16_WHITE);
 
-  // @lilamiami watermark in gold
-  ctx.font = `28px ${FONT_NAME}`;
-  ctx.fillStyle = '#D4AF37';
-  ctx.fillText('@lilamiami', 50, SIZE - 48);
+  const clean = stripEmojis(captionText).substring(0, 180);
+  console.log(`🖊️ Drawing: "${clean.substring(0, 60)}..."`);
 
-  return canvas.toBuffer('image/jpeg');
+  // Print caption
+  image.print(font32, 50, SIZE - 160, { text: clean, alignmentX: Jimp.HORIZONTAL_ALIGN_LEFT }, SIZE - 100, 110);
+
+  // Print @lilamiami
+  image.print(font16, 50, SIZE - 38, '@lilamiami');
+
+  return await image.getBufferAsync(Jimp.MIME_JPEG);
 }
 
 async function uploadToImgBB(imageBuffer) {
