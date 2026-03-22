@@ -43,17 +43,19 @@ Using the product photo as reference, generate a close-up lifestyle photo of the
 - Frame the shot tightly on the body part where the jewelry sits: wrist and hand for a bracelet, neck and collarbone for a necklace, earlobe and neck for earrings, finger for a ring
 - The face must NOT appear in the frame at all — crop well above or below it
 - Warm Latina skin tone, completely matte — not oily, not shiny, not plastic, not airbrushed
-- This is a macro close-up shot — every skin detail must be sharp and visible at pixel level, exactly like an unedited RAW photo straight from camera
-- PORES must be clearly visible and open — uneven pore size across the skin, larger pores on forearm, finer on inner wrist, sebaceous pores visible especially near wrist creases
-- Tiny blue veins faintly visible under the skin near the wrist and inner arm
-- Visible fine wrinkle lines and crease lines on the wrist and knuckles, natural skin folds where the hand bends
-- Faint stretch marks or skin crease lines on inner wrist
-- Faint arm hair visible on the forearm — fine and natural
-- Subtle freckles or sun spots from Miami sun exposure
-- Skin tone has natural uneven variation — slight redness near knuckles, slightly darker on forearm, lighter on inner wrist
-- One or two tiny dark pores or small imperfections visible on forearm
-- Side lighting at a low angle raking across the skin surface to reveal texture and depth — NOT flat front lighting that hides pores
-- Do NOT apply any skin retouching, smoothing, frequency separation, or beauty post-processing whatsoever
+- This is a macro close-up shot — treat it like an unedited candid photo taken on an iPhone in natural light, completely raw and unfiltered
+- PORES must be clearly visible and open everywhere — neck, collarbone, chest, wrist, forearm — uneven pore size, sebaceous pores, real skin grain at pixel level
+- Neck and collarbone skin must show real texture: fine horizontal neck lines, subtle skin grain, visible pores — NOT smooth like a mannequin
+- Natural collarbone shadow and depth, slight skin fold where the collarbone meets the neck
+- Faint peach fuzz on neck and chest area — barely visible fine hairs catching the light
+- Tiny blue veins faintly visible under the skin near wrist and inner arm
+- Visible fine crease lines on wrist and knuckles, natural skin folds where the hand bends
+- Faint arm hair on forearm — fine and natural
+- Subtle freckles and sun spots from Miami sun, one or two tiny blemishes or dark spots
+- Natural skin tone variation — slight redness on collarbone from sun, uneven warmth across chest and neck
+- Shot at ISO 640 — subtle natural digital grain visible across the entire image, especially in shadow areas
+- Side lighting raking across the skin at a low angle to cast micro-shadows inside pores and reveal surface texture
+- Imagine this was taken by a friend with a good phone camera — real, candid, no studio retouching, no Facetune, no smoothing filters
 - The jewelry must match EXACTLY the design, colors, stones, and materials from the reference photo
 - The jewelry is the clear hero of the shot — well-lit, sharp, and beautiful
 - Background is soft, warm, slightly blurred — lifestyle feel, real environment
