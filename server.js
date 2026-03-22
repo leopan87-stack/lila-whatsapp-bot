@@ -197,36 +197,40 @@ async function createBrandedImage(imageBuffer, captionText) {
 
   // --- text-to-svg path rendering (Playfair Display Italic) ---
   if (captionTTS && taglineTTS) {
-    const lineH = 82;
-    const captionY = SIZE - 115 - (svgLines.length - 1) * lineH;
+    const GOLD = '#F5D285';       // warm champagne gold
+    const WHITE = 'rgba(255,255,255,0.90)';
+    const lineH = 86;
+    // Push caption higher so tagline never overlaps
+    const captionY = SIZE - 210 - (svgLines.length - 1) * lineH;
+    const decorLineY = captionY - 18;  // thin gold line above text
 
     let captionPaths = '';
     svgLines.forEach((line, i) => {
       captionPaths += captionTTS.getPath(line, {
-        fontSize: 68,
+        fontSize: 72,
         anchor: 'top left',
         x: 60,
         y: captionY + i * lineH,
-        attributes: { fill: 'white', filter: 'url(#ts)' },
+        attributes: { fill: GOLD, filter: 'url(#ts)' },
       });
     });
 
     const taglinePath = taglineTTS.getPath("MIAMI'S EVERYDAY GOLD", {
-      fontSize: 20,
+      fontSize: 19,
       anchor: 'top left',
       x: 60,
-      y: SIZE - 65,
-      attributes: { fill: 'rgba(255,255,255,0.85)' },
+      y: SIZE - 48,
+      attributes: { fill: WHITE },
     });
 
     const lilaText = '@lilamiami';
-    const lilaW = taglineTTS.getMetrics(lilaText, { fontSize: 20 }).width;
+    const lilaW = taglineTTS.getMetrics(lilaText, { fontSize: 19 }).width;
     const lilaPath = taglineTTS.getPath(lilaText, {
-      fontSize: 20,
+      fontSize: 19,
       anchor: 'top left',
       x: SIZE - 60 - lilaW,
-      y: SIZE - 65,
-      attributes: { fill: 'rgba(255,255,255,0.85)' },
+      y: SIZE - 48,
+      attributes: { fill: WHITE },
     });
 
     const textSvg = Buffer.from(
@@ -234,13 +238,14 @@ async function createBrandedImage(imageBuffer, captionText) {
         <defs>
           <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stop-color="black" stop-opacity="0"/>
-            <stop offset="100%" stop-color="black" stop-opacity="0.80"/>
+            <stop offset="100%" stop-color="black" stop-opacity="0.88"/>
           </linearGradient>
           <filter id="ts" x="-5%" y="-10%" width="110%" height="130%">
-            <feDropShadow dx="1" dy="2" stdDeviation="3" flood-color="black" flood-opacity="0.8"/>
+            <feDropShadow dx="1" dy="2" stdDeviation="3" flood-color="black" flood-opacity="0.75"/>
           </filter>
         </defs>
-        <rect x="0" y="${SIZE - 420}" width="${SIZE}" height="420" fill="url(#g)"/>
+        <rect x="0" y="${SIZE - 480}" width="${SIZE}" height="480" fill="url(#g)"/>
+        <line x1="60" y1="${decorLineY}" x2="280" y2="${decorLineY}" stroke="#F5D285" stroke-width="1.5" opacity="0.75"/>
         ${captionPaths}
         ${taglinePath}
         ${lilaPath}
