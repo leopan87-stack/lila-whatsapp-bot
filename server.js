@@ -10,15 +10,23 @@ const path = require('path');
 const Jimp = require('jimp');
 const TextToSVG = require('text-to-svg');
 
-let captionTTS = null;
-let taglineTTS = null;
+let fontItalic = null;   // Playfair Display Italic — body text
+let fontBold = null;     // Playfair Display Bold — big impact word
+let fontScript = null;   // Dancing Script Bold — accent/script word
+let fontTagline = null;  // Roboto — small tagline
 try {
-  captionTTS = TextToSVG.loadSync(path.join(__dirname, 'fonts', 'PlayfairDisplay-Italic.ttf'));
-  taglineTTS = TextToSVG.loadSync(path.join(__dirname, 'fonts', 'Roboto-Regular.ttf'));
-  console.log('✅ Fonts loaded: Playfair Display Italic + Roboto');
+  fontItalic  = TextToSVG.loadSync(path.join(__dirname, 'fonts', 'PlayfairDisplay-Italic.ttf'));
+  fontBold    = TextToSVG.loadSync(path.join(__dirname, 'fonts', 'PlayfairDisplay-Bold.ttf'));
+  fontScript  = TextToSVG.loadSync(path.join(__dirname, 'fonts', 'DancingScript-Bold.ttf'));
+  fontTagline = TextToSVG.loadSync(path.join(__dirname, 'fonts', 'Roboto-Regular.ttf'));
+  console.log('✅ Fonts loaded: Playfair Bold + Italic + Dancing Script + Roboto');
 } catch (e) {
   console.warn('⚠️ Font load failed, will use bitmap fallback:', e.message);
 }
+
+// Alias for existing code
+const captionTTS = fontItalic;
+const taglineTTS = fontTagline;
 
 const app = express();
 app.use(express.urlencoded({ extended: false }));
@@ -227,149 +235,230 @@ function stripEmojis(str) {
   return str.replace(/[^\x20-\x7E]/g, '').replace(/\s+/g, ' ').trim();
 }
 
+function wrapText(text, charsPerLine, maxLines) {
+  const words = text.split(' ');
+  const lines = [];
+  let cur = '';
+  for (const w of words) {
+    const test = cur ? cur + ' ' + w : w;
+    if (test.length > charsPerLine) {
+      if (cur) lines.push(cur);
+      cur = w;
+      if (lines.length >= maxLines - 1) { lines.push(cur); break; }
+    } else cur = test;
+  }
+  if (cur && lines.length < maxLines) lines.push(cur);
+  return lines;
+}
+
+function buildTaglineAndHandle(SIZE) {
+  if (!fontTagline) return '';
+  const tagPath = fontTagline.getPath("MIAMI'S EVERYDAY GOLD", {
+    fontSize: 18, anchor: 'top left', x: 60, y: SIZE - 46,
+    attributes: { fill: 'rgba(255,255,255,0.80)' },
+  });
+  const lilaText = '@lilamiami';
+  const lilaW = fontTagline.getMetrics(lilaText, { fontSize: 18 }).width;
+  const lilaPath = fontTagline.getPath(lilaText, {
+    fontSize: 18, anchor: 'top left', x: SIZE - 60 - lilaW, y: SIZE - 46,
+    attributes: { fill: 'rgba(255,255,255,0.80)' },
+  });
+  return tagPath + lilaPath;
+}
+
 async function createBrandedImage(imageBuffer, captionText) {
   const SIZE = 1080;
+  const GOLD = '#F5D285';
+  const GOLD_DIM = 'rgba(245,210,133,0.85)';
+  const WHITE = 'rgba(255,255,255,0.92)';
 
-  // Resize + luxury jewelry photo edit
-  const resizedBuffer = await sharp(imageBuffer)
+  // Photo editing — warm luxury look
+  const editedBuffer = await sharp(imageBuffer)
     .resize(SIZE, SIZE, { fit: 'cover', position: 'center' })
-    .modulate({ brightness: 1.08, saturation: 1.35, hue: 8 }) // warm + vivid
-    .linear(1.15, -15)  // contrast boost
-    .sharpen({ sigma: 0.8 }) // crisp details
+    .modulate({ brightness: 1.08, saturation: 1.35, hue: 8 })
+    .linear(1.15, -15)
+    .sharpen({ sigma: 0.8 })
     .jpeg({ quality: 95 })
     .toBuffer();
 
-  // Add vignette (dark edges) using sharp composite
-  const vignetteSvg = Buffer.from(
-    `<svg width="${SIZE}" height="${SIZE}" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <radialGradient id="v" cx="50%" cy="50%" r="70%">
-          <stop offset="0%" stop-color="black" stop-opacity="0"/>
-          <stop offset="100%" stop-color="black" stop-opacity="0.45"/>
-        </radialGradient>
-      </defs>
-      <rect width="${SIZE}" height="${SIZE}" fill="url(#v)"/>
-    </svg>`
-  );
+  // Vignette
+  const vignetteSvg = Buffer.from(`<svg width="${SIZE}" height="${SIZE}" xmlns="http://www.w3.org/2000/svg">
+    <defs><radialGradient id="v" cx="50%" cy="50%" r="70%">
+      <stop offset="0%" stop-color="black" stop-opacity="0"/>
+      <stop offset="100%" stop-color="black" stop-opacity="0.45"/>
+    </radialGradient></defs>
+    <rect width="${SIZE}" height="${SIZE}" fill="url(#v)"/>
+  </svg>`);
 
-  const vignetteBuffer = await sharp(resizedBuffer)
+  const baseBuffer = await sharp(editedBuffer)
     .composite([{ input: vignetteSvg, blend: 'multiply' }])
     .jpeg({ quality: 95 })
     .toBuffer();
 
-  // Clean caption — first complete sentence only, max 55 chars
+  // Clean caption
   let clean = stripEmojis(captionText);
   const dot = clean.search(/[.!?]/);
-  if (dot > 10 && dot < 100) {
-    clean = clean.substring(0, dot + 1);
-  } else {
-    clean = clean.substring(0, 55);
-    const sp = clean.lastIndexOf(' ');
-    if (sp > 15) clean = clean.substring(0, sp) + '...';
+  if (dot > 10 && dot < 100) clean = clean.substring(0, dot + 1);
+  else { clean = clean.substring(0, 55); const sp = clean.lastIndexOf(' '); if (sp > 15) clean = clean.substring(0, sp) + '...'; }
+  console.log(`🖊️ Style layout, caption: "${clean}"`);
+
+  // Pick layout style — rotate every post
+  const style = Math.floor(Date.now() / 1000) % 3;
+
+  if (!fontBold || !fontItalic || !fontScript || !fontTagline) {
+    // Jimp fallback
+    const image = await Jimp.read(baseBuffer);
+    const font64 = await Jimp.loadFont(Jimp.FONT_SANS_64_WHITE);
+    const font16 = await Jimp.loadFont(Jimp.FONT_SANS_16_WHITE);
+    image.print(font64, 50, SIZE - 300, { text: clean, alignmentX: Jimp.HORIZONTAL_ALIGN_LEFT }, SIZE - 100, 240);
+    image.print(font16, 50, SIZE - 55, "MIAMI'S EVERYDAY GOLD");
+    image.print(font16, SIZE - 220, SIZE - 55, '@lilamiami');
+    return await image.getBufferAsync(Jimp.MIME_JPEG);
   }
-  console.log(`🖊️ Drawing: "${clean}"`);
 
-  // Word wrap (~22 chars per line at 68px)
-  const words = clean.split(' ');
-  const svgLines = [];
-  let cur = '';
-  for (const w of words) {
-    const test = cur ? cur + ' ' + w : w;
-    if (test.length > 22) {
-      if (cur) svgLines.push(cur);
-      cur = w;
-      if (svgLines.length >= 3) break;
-    } else {
-      cur = test;
-    }
-  }
-  if (cur && svgLines.length < 4) svgLines.push(cur);
+  let textSvgStr = '';
 
-  // --- text-to-svg path rendering (Playfair Display Italic) ---
-  if (captionTTS && taglineTTS) {
-    const GOLD = '#F5D285';       // warm champagne gold
-    const WHITE = 'rgba(255,255,255,0.90)';
-    const lineH = 86;
-    // Push caption higher so tagline never overlaps
-    const captionY = SIZE - 210 - (svgLines.length - 1) * lineH;
-    const decorLineY = captionY - 18;  // thin gold line above text
+  if (style === 0) {
+    // ── STYLE 1: Bold impact word top-left + italic caption bottom ──
+    // Extract first word as BIG impact word
+    const impactWord = clean.split(' ')[0].replace(/[.,!?]/, '').toUpperCase();
+    const restWords = clean.split(' ').slice(1).join(' ');
+    const restLines = wrapText(restWords, 24, 3);
 
-    let captionPaths = '';
-    svgLines.forEach((line, i) => {
-      captionPaths += captionTTS.getPath(line, {
-        fontSize: 72,
-        anchor: 'top left',
-        x: 60,
-        y: captionY + i * lineH,
+    const impactPath = fontBold.getPath(impactWord, {
+      fontSize: 130, anchor: 'top left', x: 55, y: 60,
+      attributes: { fill: GOLD, filter: 'url(#ts)' },
+    });
+    const impactW = fontBold.getMetrics(impactWord, { fontSize: 130 }).width;
+    const accentLine = `<line x1="55" y1="200" x2="${Math.min(55 + impactW, SIZE - 60)}" y2="200" stroke="${GOLD}" stroke-width="2" opacity="0.6"/>`;
+
+    let restPaths = '';
+    restLines.forEach((line, i) => {
+      restPaths += fontItalic.getPath(line, {
+        fontSize: 58, anchor: 'top left', x: 60, y: SIZE - 200 - (restLines.length - 1 - i) * 68,
+        attributes: { fill: WHITE, filter: 'url(#ts)' },
+      });
+    });
+
+    textSvgStr = `
+      <defs>
+        <linearGradient id="gt" x1="0" y1="1" x2="0" y2="0">
+          <stop offset="0%" stop-color="black" stop-opacity="0"/>
+          <stop offset="40%" stop-color="black" stop-opacity="0.5"/>
+        </linearGradient>
+        <linearGradient id="gb" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="black" stop-opacity="0"/>
+          <stop offset="100%" stop-color="black" stop-opacity="0.85"/>
+        </linearGradient>
+        <filter id="ts" x="-5%" y="-10%" width="120%" height="140%">
+          <feDropShadow dx="1" dy="2" stdDeviation="4" flood-color="black" flood-opacity="0.8"/>
+        </filter>
+      </defs>
+      <rect x="0" y="0" width="${SIZE}" height="240" fill="url(#gt)"/>
+      <rect x="0" y="${SIZE - 430}" width="${SIZE}" height="430" fill="url(#gb)"/>
+      ${impactPath}
+      ${accentLine}
+      ${restPaths}
+      ${buildTaglineAndHandle(SIZE)}`;
+
+  } else if (style === 1) {
+    // ── STYLE 2: Centered script + bold — editorial center block ──
+    const scriptLines = wrapText(clean, 20, 2);
+    const centerY = SIZE / 2 - (scriptLines.length * 80) / 2;
+
+    let scriptPaths = '';
+    scriptLines.forEach((line, i) => {
+      const metrics = fontScript.getMetrics(line, { fontSize: 88 });
+      const x = (SIZE - metrics.width) / 2;
+      scriptPaths += fontScript.getPath(line, {
+        fontSize: 88, anchor: 'top left', x, y: centerY + i * 100,
         attributes: { fill: GOLD, filter: 'url(#ts)' },
       });
     });
 
-    const taglinePath = taglineTTS.getPath("MIAMI'S EVERYDAY GOLD", {
-      fontSize: 19,
-      anchor: 'top left',
-      x: 60,
-      y: SIZE - 48,
-      attributes: { fill: WHITE },
+    // Thin gold frame
+    const pad = 40;
+    const frame = `<rect x="${pad}" y="${pad}" width="${SIZE - pad * 2}" height="${SIZE - pad * 2}"
+      fill="none" stroke="${GOLD}" stroke-width="1.5" opacity="0.5"/>`;
+
+    textSvgStr = `
+      <defs>
+        <radialGradient id="gc" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="black" stop-opacity="0.2"/>
+          <stop offset="100%" stop-color="black" stop-opacity="0.75"/>
+        </radialGradient>
+        <linearGradient id="gb" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="black" stop-opacity="0"/>
+          <stop offset="100%" stop-color="black" stop-opacity="0.80"/>
+        </linearGradient>
+        <filter id="ts" x="-5%" y="-10%" width="120%" height="140%">
+          <feDropShadow dx="1" dy="2" stdDeviation="4" flood-color="black" flood-opacity="0.8"/>
+        </filter>
+      </defs>
+      <rect width="${SIZE}" height="${SIZE}" fill="url(#gc)"/>
+      <rect x="0" y="${SIZE - 300}" width="${SIZE}" height="300" fill="url(#gb)"/>
+      ${frame}
+      ${scriptPaths}
+      ${buildTaglineAndHandle(SIZE)}`;
+
+  } else {
+    // ── STYLE 3: Full bottom dark panel — bold large + script small ──
+    const boldLines = wrapText(clean, 18, 2);
+    const panelH = 360;
+    const boldY = SIZE - panelH + 40;
+
+    let boldPaths = '';
+    boldLines.forEach((line, i) => {
+      boldPaths += fontBold.getPath(line, {
+        fontSize: 82, anchor: 'top left', x: 60, y: boldY + i * 96,
+        attributes: { fill: GOLD, filter: 'url(#ts)' },
+      });
+    });
+
+    // Script accent word — "by @lilamiami" style
+    const scriptAccent = fontScript.getPath('everyday gold.', {
+      fontSize: 52, anchor: 'top left', x: 62, y: boldY + boldLines.length * 96 + 8,
+      attributes: { fill: 'rgba(255,255,255,0.75)', filter: 'url(#ts)' },
     });
 
     const lilaText = '@lilamiami';
-    const lilaW = taglineTTS.getMetrics(lilaText, { fontSize: 19 }).width;
-    const lilaPath = taglineTTS.getPath(lilaText, {
-      fontSize: 19,
-      anchor: 'top left',
-      x: SIZE - 60 - lilaW,
-      y: SIZE - 48,
-      attributes: { fill: WHITE },
+    const lilaW = fontTagline.getMetrics(lilaText, { fontSize: 18 }).width;
+    const lilaPath = fontTagline.getPath(lilaText, {
+      fontSize: 18, anchor: 'top left', x: SIZE - 60 - lilaW, y: SIZE - 46,
+      attributes: { fill: 'rgba(255,255,255,0.80)' },
+    });
+    const tagPath = fontTagline.getPath("MIAMI'S EVERYDAY GOLD", {
+      fontSize: 18, anchor: 'top left', x: 60, y: SIZE - 46,
+      attributes: { fill: 'rgba(255,255,255,0.80)' },
     });
 
-    const textSvg = Buffer.from(
-      `<svg width="${SIZE}" height="${SIZE}" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-          <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="black" stop-opacity="0"/>
-            <stop offset="100%" stop-color="black" stop-opacity="0.88"/>
-          </linearGradient>
-          <filter id="ts" x="-5%" y="-10%" width="110%" height="130%">
-            <feDropShadow dx="1" dy="2" stdDeviation="3" flood-color="black" flood-opacity="0.75"/>
-          </filter>
-        </defs>
-        <rect x="0" y="${SIZE - 480}" width="${SIZE}" height="480" fill="url(#g)"/>
-        <line x1="60" y1="${decorLineY}" x2="280" y2="${decorLineY}" stroke="#F5D285" stroke-width="1.5" opacity="0.75"/>
-        ${captionPaths}
-        ${taglinePath}
-        ${lilaPath}
-      </svg>`
-    );
+    // Gold accent line
+    const accentLine = `<line x1="60" y1="${boldY - 16}" x2="200" y2="${boldY - 16}" stroke="${GOLD}" stroke-width="1.5" opacity="0.7"/>`;
 
-    return await sharp(vignetteBuffer)
-      .composite([{ input: textSvg, top: 0, left: 0 }])
-      .jpeg({ quality: 95 })
-      .toBuffer();
+    textSvgStr = `
+      <defs>
+        <linearGradient id="gb" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="black" stop-opacity="0"/>
+          <stop offset="100%" stop-color="black" stop-opacity="0.92"/>
+        </linearGradient>
+        <filter id="ts" x="-5%" y="-10%" width="120%" height="140%">
+          <feDropShadow dx="1" dy="2" stdDeviation="4" flood-color="black" flood-opacity="0.8"/>
+        </filter>
+      </defs>
+      <rect x="0" y="${SIZE - panelH}" width="${SIZE}" height="${panelH}" fill="url(#gb)"/>
+      ${accentLine}
+      ${boldPaths}
+      ${scriptAccent}
+      ${tagPath}
+      ${lilaPath}`;
   }
 
-  // --- Jimp bitmap fallback (if fonts failed to load) ---
-  const image = await Jimp.read(vignetteBuffer);
-  const gradStart = Math.floor(SIZE * 0.58);
-  for (let y = gradStart; y < SIZE; y++) {
-    const alpha = Math.floor(((y - gradStart) / (SIZE - gradStart)) * 180);
-    for (let x = 0; x < SIZE; x++) {
-      const color = image.getPixelColor(x, y);
-      const r = (color >> 24) & 0xff;
-      const g = (color >> 16) & 0xff;
-      const b = (color >> 8) & 0xff;
-      const nr = Math.max(0, r - Math.floor(r * alpha / 255));
-      const ng = Math.max(0, g - Math.floor(g * alpha / 255));
-      const nb = Math.max(0, b - Math.floor(b * alpha / 255));
-      image.setPixelColor(Jimp.rgbaToInt(nr, ng, nb, 255), x, y);
-    }
-  }
-  const font64 = await Jimp.loadFont(Jimp.FONT_SANS_64_WHITE);
-  const font16 = await Jimp.loadFont(Jimp.FONT_SANS_16_WHITE);
-  image.print(font64, 50, SIZE - 300, { text: clean, alignmentX: Jimp.HORIZONTAL_ALIGN_LEFT }, SIZE - 100, 240);
-  image.print(font16, 50, SIZE - 55, "MIAMI'S EVERYDAY GOLD");
-  image.print(font16, SIZE - 220, SIZE - 55, '@lilamiami');
-  return await image.getBufferAsync(Jimp.MIME_JPEG);
+  const textSvg = Buffer.from(`<svg width="${SIZE}" height="${SIZE}" xmlns="http://www.w3.org/2000/svg">${textSvgStr}</svg>`);
+
+  return await sharp(baseBuffer)
+    .composite([{ input: textSvg, top: 0, left: 0 }])
+    .jpeg({ quality: 95 })
+    .toBuffer();
 }
 
 async function postToInstagram(imageUrl, caption) {
