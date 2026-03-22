@@ -482,7 +482,7 @@ function wrapText(text, charsPerLine, maxLines) {
 
 function drawTagline(ctx, SIZE) {
   ctx.save();
-  ctx.font = '18px "Roboto"';
+  ctx.font = '36px "Roboto"';
   ctx.fillStyle = 'rgba(245,210,133,0.90)';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
@@ -682,7 +682,7 @@ async function createBrandedImage(imageBuffer, captionText) {
       ctx.shadowColor = 'transparent';
       ctx.shadowBlur = 0;
 
-      ctx.font = '18px "Roboto"';
+      ctx.font = '36px "Roboto"';
       ctx.fillStyle = 'rgba(255,255,255,0.80)';
       ctx.textAlign = 'left';
       ctx.textBaseline = 'top';
