@@ -42,10 +42,12 @@ Using the product photo as reference, generate a close-up lifestyle photo of the
 
 - Frame the shot tightly on the body part where the jewelry sits: wrist and hand for a bracelet, neck and collarbone for a necklace, earlobe and neck for earrings, finger for a ring
 - The face must NOT appear in the frame at all — crop well above or below it
-- Warm Latina skin tone, matte and natural — skin looks real, not oily, not shiny, not plastic
-- Skin has subtle visible texture: fine pores, faint hair follicles, natural variation in tone — no airbrushing
-- NO specular highlights or wet-looking shine on skin — matte finish like real skin in soft light
-- Skin color is warm and even but not perfect — slight natural variation between wrist, knuckles, and fingers
+- Warm Latina skin tone, completely matte — not oily, not shiny, not plastic, not airbrushed
+- PORES MUST BE CLEARLY VISIBLE under macro close-up — this is a close-up shot so pores, fine lines, skin texture, tiny hairs, and natural imperfections must all be clearly visible just like in a real macro photo
+- Visible fine wrinkle lines on the wrist and knuckles, natural skin folds where the hand bends
+- Faint arm hair visible on the forearm, subtle freckles or sun spots welcome
+- Skin color has natural variation — slightly darker on knuckles, lighter on inner wrist, natural uneven tone
+- NO airbrushing, NO smoothing, NO beauty filter — raw natural skin as seen in real macro photography
 - The jewelry must match EXACTLY the design, colors, stones, and materials from the reference photo
 - The jewelry is the clear hero of the shot — well-lit, sharp, and beautiful
 - Background is soft, warm, slightly blurred — lifestyle feel, real environment
