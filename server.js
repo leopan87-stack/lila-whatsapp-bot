@@ -169,9 +169,10 @@ Transform this photo into an editorial Instagram image:
     ctx.fillStyle = botGrad;
     ctx.fillRect(0, SIZE - 100, SIZE, 100);
 
-    // Caption text
+    // Caption text — outline effect
     ctx.font = '300 italic 96px "Bodoni Moda"';
-    ctx.fillStyle = GOLD;
+    ctx.strokeStyle = GOLD;
+    ctx.lineWidth = 1.2;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
     ctx.shadowColor = 'rgba(0,0,0,0.95)';
@@ -179,7 +180,7 @@ Transform this photo into an editorial Instagram image:
     ctx.shadowOffsetX = 1;
     ctx.shadowOffsetY = 2;
     captionLines.forEach((line, i) => {
-      ctx.fillText(line, SIZE / 2, captionY + i * lineH);
+      ctx.strokeText(line, SIZE / 2, captionY + i * lineH);
     });
 
     ctx.shadowColor = 'transparent';
@@ -589,13 +590,14 @@ async function createBrandedImage(imageBuffer, captionText) {
       ctx.globalAlpha = 1;
 
       ctx.font = '300 italic 68px "Bodoni Moda"';
-      ctx.fillStyle = WHITE;
+      ctx.strokeStyle = WHITE;
+      ctx.lineWidth = 1.2;
       ctx.shadowColor = 'rgba(0,0,0,0.8)';
       ctx.shadowBlur = 16;
       ctx.shadowOffsetX = 1;
       ctx.shadowOffsetY = 2;
       restLines.forEach((line, i) => {
-        ctx.fillText(line, 60, SIZE - 200 - (restLines.length - 1 - i) * 68);
+        ctx.strokeText(line, 60, SIZE - 200 - (restLines.length - 1 - i) * 68);
       });
 
       ctx.shadowColor = 'transparent';
@@ -786,9 +788,10 @@ async function createVideoTextOverlay(captionText) {
     ctx.fillStyle = botGrad;
     ctx.fillRect(0, SIZE - 100, SIZE, 100);
 
-    // Caption text
+    // Caption text — outline effect
     ctx.font = '300 italic 96px "Bodoni Moda"';
-    ctx.fillStyle = GOLD;
+    ctx.strokeStyle = GOLD;
+    ctx.lineWidth = 1.2;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
     ctx.shadowColor = 'rgba(0,0,0,0.95)';
@@ -796,7 +799,7 @@ async function createVideoTextOverlay(captionText) {
     ctx.shadowOffsetX = 1;
     ctx.shadowOffsetY = 2;
     captionLines.forEach((line, i) => {
-      ctx.fillText(line, SIZE / 2, captionBaseY + i * lineH);
+      ctx.strokeText(line, SIZE / 2, captionBaseY + i * lineH);
     });
 
     ctx.shadowColor = 'transparent';
