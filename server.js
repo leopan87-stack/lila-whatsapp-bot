@@ -112,6 +112,7 @@ const state = {};
 const lastContent = {};
 const lastImageUrl = {};
 const lastCaption = {};
+const pendingPhoto = {}; // stores photo info while waiting for keywords
 const processing = new Set(); // deduplicate concurrent webhook calls
 
 function getState(number) {
@@ -363,14 +364,15 @@ async function uploadToImgBB(imageBuffer) {
 }
 
 function extractInstagramCaption(fullContent) {
-  // Extract caption text (first 2 sentences)
-  const captionMatch = fullContent.match(/CAPTION[^\n]*\n+([\s\S]*?)(?=\n\s*(?:HASHTAG|BEST TIME|QUICK TIP|#|⏰|💡)|$)/i);
+  // Caption text only
+  const captionMatch = fullContent.match(/CAPTION[^\n]*\n+([\s\S]*?)(?=\n\s*(?:HASHTAG|BEST TIME|QUICK TIP|#️⃣|⏰|💡)|$)/i);
   const captionText = captionMatch ? captionMatch[1].trim() : '';
 
-  // Extract hashtags block
+  // Hashtags only — stop before BEST TIME or QUICK TIP
   const hashtagMatch = fullContent.match(/HASHTAG[^\n]*\n+([\s\S]*?)(?=\n\s*(?:BEST TIME|QUICK TIP|⏰|💡)|$)/i);
   const hashtags = hashtagMatch ? hashtagMatch[1].trim() : '';
 
+  // Only caption + hashtags — no tips or timing info
   return [captionText, hashtags].filter(Boolean).join('\n\n').substring(0, 2200);
 }
 
@@ -445,7 +447,7 @@ function splitMessage(text, maxLen = 1500) {
 async function processPhoto(from, mediaUrl, mediaContentType, caption) {
   if (processing.has(from)) return; // ignore duplicate webhook
   processing.add(from);
-  await sendMessage(from, '📸 Got it! Creating your branded post... give me a sec ✨');
+  await sendMessage(from, `Perfect! Give me a moment while I create your post, ${getName(from)}... ✨`);
 
   try {
     const { buffer, contentType } = await downloadImageBuffer(mediaUrl);
@@ -535,9 +537,25 @@ app.post('/webhook', async (req, res) => {
 
   if (currentState === 'waiting_for_photo') {
     if (numMedia > 0 && mediaUrl) {
-      await processPhoto(from, mediaUrl, mediaContentType, rawBody);
+      // Save photo info and ask for keywords first
+      pendingPhoto[from] = { mediaUrl, mediaContentType };
+      setState(from, 'waiting_for_keywords');
+      await sendMessage(from, `Love it, ${getName(from)}! 💎 Before I create your post — any keywords or details you want me to highlight?\n\nExamples: "gift for mom", "gold bracelet", "new arrival", "summer vibes"\n\nOr just say *skip* to go straight to it!`);
     } else {
       await sendMessage(from, `Go ahead and send me the photo, ${getName(from)}! 📸 I'll handle the rest.`);
+    }
+    return;
+  }
+
+  if (currentState === 'waiting_for_keywords') {
+    const keywords = body === 'skip' ? '' : rawBody;
+    const pending = pendingPhoto[from];
+    delete pendingPhoto[from];
+    if (pending) {
+      await processPhoto(from, pending.mediaUrl, pending.mediaContentType, keywords);
+    } else {
+      setState(from, 'waiting_for_photo');
+      await sendMessage(from, `Send me the photo first, ${getName(from)}! 📸`);
     }
     return;
   }
