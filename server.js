@@ -37,15 +37,17 @@ async function createBrandedImageAI(imageBuffer, captionText, withModel = false)
 
   // ── Step 1: Gemini enhances photo ──
   const bgPrompt = withModel
-    ? `You are a professional photographer for Lila Miami, a luxury jewelry brand in Miami.
-Using the product photo as reference, generate a realistic photo of a Latina woman wearing this exact jewelry piece.
-- She is naturally beautiful, average everyday look — not a supermodel, not overdone
-- Latina features, warm skin tone, dark hair, natural makeup
-- Expression is relaxed and confident — real, not posed
-- The jewelry must match EXACTLY the design, colors, and materials from the reference photo, worn on the correct body part
-- Background is soft and complementary — warm, lifestyle, real environment
-- Lighting is natural and flattering
-- The photo must look real, not AI-generated
+    ? `You are a professional jewelry photographer for Lila Miami, a luxury jewelry brand in Miami.
+Using the product photo as reference, generate a close-up lifestyle photo of the jewelry being worn — NO face, NO head.
+
+- Frame the shot tightly on the body part where the jewelry sits: wrist and hand for a bracelet, neck and collarbone for a necklace, earlobe and neck for earrings, finger for a ring
+- The face must NOT appear in the frame at all — crop well above or below it
+- Warm Latina skin tone, natural and realistic skin texture
+- The jewelry must match EXACTLY the design, colors, stones, and materials from the reference photo
+- The jewelry is the clear hero of the shot — well-lit, sharp, and beautiful
+- Background is soft, warm, slightly blurred — lifestyle feel, real environment
+- Lighting is natural, soft, and flattering — no harsh flash
+- The photo must look like a real professional camera shot, not AI-generated
 - Output: square 1:1 format, photorealistic, no text, no watermarks`
     : `You are a luxury photographer for Lila Miami, a jewelry brand in Miami.
 Transform this photo into an editorial Instagram image:
