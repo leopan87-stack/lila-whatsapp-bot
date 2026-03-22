@@ -654,19 +654,13 @@ async function generateContent(imageBase64, imageContentType, userCaption) {
 Brand voice: elegant, warm, Miami chic, modern woman energy.
 Tagline: "Miami's everyday gold — handpicked for the modern woman."
 
-When given a product photo, generate a complete Instagram post with these 4 sections:
+When given a product photo, generate an Instagram post with these 2 sections:
 
 📝 CAPTION
 2-3 sentences. IMPORTANT: Start with a short, punchy first sentence under 55 characters that ends with a period, exclamation, or question mark. Then 1-2 follow-up sentences. Include 1-2 tasteful emojis. Speak to the modern Miami woman.
 
 #️⃣ HASHTAGS
-25 relevant hashtags. Mix popular (#jewelry #gold) with niche (#miamijewelry #lilamiami #goldjewelry #handpickedjewelry) and lifestyle tags (#miamiwoman #everydayluxury).
-
-⏰ BEST TIME TO POST
-Give a specific day + time in Miami (ET) with a brief reason (e.g., "Tuesday 7 PM ET — weekday evenings have peak jewelry browsing on Instagram").
-
-💡 QUICK TIP
-One actionable tip to boost engagement for this specific photo (lighting, story post, reel idea, etc.).`,
+25 relevant hashtags. Mix popular (#jewelry #gold) with niche (#miamijewelry #lilamiami #goldjewelry #handpickedjewelry) and lifestyle tags (#miamiwoman #everydayluxury).`,
     messages: [
       {
         role: 'user',
