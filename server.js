@@ -82,6 +82,8 @@ const GROUP = [
 
 const state = {};
 const lastContent = {};
+const lastImageUrl = {};
+const lastCaption = {};
 const processing = new Set(); // deduplicate concurrent webhook calls
 
 function getState(number) {
@@ -282,6 +284,25 @@ async function createBrandedImage(imageBuffer, captionText) {
   return await image.getBufferAsync(Jimp.MIME_JPEG);
 }
 
+async function postToInstagram(imageUrl, caption) {
+  const igUserId = process.env.INSTAGRAM_USER_ID;
+  const token = process.env.INSTAGRAM_ACCESS_TOKEN;
+
+  // Step 1: Create media container
+  const container = await axios.post(
+    `https://graph.instagram.com/v21.0/${igUserId}/media`,
+    { image_url: imageUrl, caption, access_token: token }
+  );
+  const creationId = container.data.id;
+
+  // Step 2: Publish
+  await axios.post(
+    `https://graph.instagram.com/v21.0/${igUserId}/media_publish`,
+    { creation_id: creationId, access_token: token }
+  );
+  console.log('✅ Posted to Instagram:', creationId);
+}
+
 async function uploadToImgBB(imageBuffer) {
   const base64 = imageBuffer.toString('base64');
   const params = new URLSearchParams({ key: process.env.IMGBB_API_KEY, image: base64 });
@@ -289,6 +310,18 @@ async function uploadToImgBB(imageBuffer) {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
   });
   return response.data.data.url;
+}
+
+function extractInstagramCaption(fullContent) {
+  // Extract caption text (first 2 sentences)
+  const captionMatch = fullContent.match(/CAPTION[^\n]*\n+([\s\S]*?)(?=\n\s*(?:HASHTAG|BEST TIME|QUICK TIP|#|⏰|💡)|$)/i);
+  const captionText = captionMatch ? captionMatch[1].trim() : '';
+
+  // Extract hashtags block
+  const hashtagMatch = fullContent.match(/HASHTAG[^\n]*\n+([\s\S]*?)(?=\n\s*(?:BEST TIME|QUICK TIP|⏰|💡)|$)/i);
+  const hashtags = hashtagMatch ? hashtagMatch[1].trim() : '';
+
+  return [captionText, hashtags].filter(Boolean).join('\n\n').substring(0, 2200);
 }
 
 function extractCaption(fullContent) {
@@ -390,6 +423,12 @@ async function processPhoto(from, mediaUrl, mediaContentType, caption) {
 
     // Upload to ImgBB
     const imageUrl = await uploadToImgBB(brandedBuffer);
+    lastImageUrl[from] = imageUrl;
+
+    // Extract full caption + hashtags for Instagram post
+    const igCaption = extractInstagramCaption(content);
+    lastCaption[from] = igCaption;
+
     setState(from, 'waiting_for_approval');
 
     // Send branded image
@@ -399,7 +438,7 @@ async function processPhoto(from, mediaUrl, mediaContentType, caption) {
     for (const chunk of splitMessage(content)) {
       await sendMessage(from, chunk);
     }
-    await sendMessage(from, '---\nReply *YES* ✅  |  *RECREATE* 🔄  |  *NO* ❌');
+    await sendMessage(from, '---\nReply *YES* to post to Instagram ✅  |  *RECREATE* 🔄  |  *NO* ❌');
 
   } catch (err) {
     console.error('❌ Error:', err.message);
@@ -456,7 +495,14 @@ app.post('/webhook', async (req, res) => {
 
     if (isYes) {
       setState(from, 'idle');
-      await sendMessage(from, '✅ Your post is ready!\n\nSave the image above + copy the caption and hashtags → post on Instagram 🚀\n\n💎 Consistency is everything — keep posting!');
+      await sendMessage(from, '⏳ Posting to Instagram...');
+      try {
+        await postToInstagram(lastImageUrl[from], lastCaption[from]);
+        await sendMessage(from, '✅ Posted to Instagram! Check @pinestateautomation 🚀\n\n💎 Consistency is everything — keep posting!');
+      } catch (igErr) {
+        console.error('❌ Instagram post failed:', igErr.response?.data || igErr.message);
+        await sendMessage(from, '⚠️ Instagram post failed. Image is saved — you can post manually.\n\nError: ' + (igErr.response?.data?.error?.message || igErr.message));
+      }
     } else if (isRecreate) {
       setState(from, 'waiting_for_photo');
       await sendMessage(from, '🔄 Got it! Resend the photo and I\'ll create a completely different version 📸');
