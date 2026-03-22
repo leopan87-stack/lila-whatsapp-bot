@@ -25,11 +25,8 @@ try {
 }
 
 function getFontDefs() {
-  const i = fontB64Italic  ? `@font-face{font-family:'LilaCaption';src:url('data:font/truetype;base64,${fontB64Italic}') format('truetype');}` : '';
-  const b = fontB64Bold    ? `@font-face{font-family:'LilaBold';src:url('data:font/truetype;base64,${fontB64Bold}') format('truetype');}` : '';
-  const s = fontB64Script  ? `@font-face{font-family:'LilaScript';src:url('data:font/truetype;base64,${fontB64Script}') format('truetype');}` : '';
-  const t = fontB64Tagline ? `@font-face{font-family:'LilaTagline';src:url('data:font/truetype;base64,${fontB64Tagline}') format('truetype');}` : '';
-  return `<style>${i}${b}${s}${t}</style>`;
+  // Fonts installed as system fonts via nixpacks.toml — librsvg finds them by name
+  return '';
 }
 
 function escapeXml(str) {
@@ -163,7 +160,7 @@ Transform this photo into an editorial Instagram image:
 
   let captionElems = '';
   captionLines.forEach((line, i) => {
-    captionElems += `<text font-family="LilaCaption" font-size="84" fill="${GOLD}" x="${SIZE / 2}" y="${captionBaseY + i * lineH}" text-anchor="middle" filter="url(#ts)">${escapeXml(line)}</text>`;
+    captionElems += `<text font-family="DM Serif Display" font-style="italic" font-size="84" fill="${GOLD}" x="${SIZE / 2}" y="${captionBaseY + i * lineH}" text-anchor="middle" filter="url(#ts)">${escapeXml(line)}</text>`;
   });
 
   const taglines = buildTaglineAndHandle(SIZE);
@@ -486,7 +483,7 @@ function wrapText(text, charsPerLine, maxLines) {
 
 function buildTaglineAndHandle(SIZE) {
   if (!fontB64Tagline) return '';
-  return `<text font-family="LilaTagline" font-size="18" fill="rgba(245,210,133,0.90)" x="${SIZE / 2}" y="${SIZE - 30}" text-anchor="middle">MIAMI'S EVERYDAY GOLD</text>`;
+  return `<text font-family="Roboto" font-size="18" fill="rgba(245,210,133,0.90)" x="${SIZE / 2}" y="${SIZE - 30}" text-anchor="middle">MIAMI'S EVERYDAY GOLD</text>`;
 }
 
 async function createBrandedImage(imageBuffer, captionText) {
@@ -546,7 +543,7 @@ async function createBrandedImage(imageBuffer, captionText) {
     let restElems = '';
     restLines.forEach((line, i) => {
       const y = SIZE - 200 - (restLines.length - 1 - i) * 68 + 50;
-      restElems += `<text font-family="LilaCaption" font-size="58" fill="${WHITE}" x="60" y="${y}" text-anchor="start" filter="url(#ts)">${escapeXml(line)}</text>`;
+      restElems += `<text font-family="DM Serif Display" font-style="italic" font-size="58" fill="${WHITE}" x="60" y="${y}" text-anchor="start" filter="url(#ts)">${escapeXml(line)}</text>`;
     });
 
     textSvgStr = `
@@ -563,7 +560,7 @@ async function createBrandedImage(imageBuffer, captionText) {
       </defs>
       <rect x="0" y="0" width="${SIZE}" height="240" fill="url(#gt)"/>
       <rect x="0" y="${SIZE - 430}" width="${SIZE}" height="430" fill="url(#gb)"/>
-      <text font-family="LilaBold" font-size="130" fill="${GOLD}" x="55" y="165" text-anchor="start" filter="url(#ts)">${impactWord}</text>
+      <text font-family="Playfair Display" font-weight="bold" font-size="130" fill="${GOLD}" x="55" y="165" text-anchor="start" filter="url(#ts)">${impactWord}</text>
       <line x1="55" y1="195" x2="400" y2="195" stroke="${GOLD}" stroke-width="2" opacity="0.6"/>
       ${restElems}
       ${buildTaglineAndHandle(SIZE)}`;
@@ -575,7 +572,7 @@ async function createBrandedImage(imageBuffer, captionText) {
 
     let scriptElems = '';
     scriptLines.forEach((line, i) => {
-      scriptElems += `<text font-family="LilaScript" font-size="88" fill="${GOLD}" x="${SIZE / 2}" y="${centerBaseY + i * 100}" text-anchor="middle" filter="url(#ts)">${escapeXml(line)}</text>`;
+      scriptElems += `<text font-family="Dancing Script" font-weight="bold" font-size="88" fill="${GOLD}" x="${SIZE / 2}" y="${centerBaseY + i * 100}" text-anchor="middle" filter="url(#ts)">${escapeXml(line)}</text>`;
     });
 
     const pad = 40;
@@ -607,7 +604,7 @@ async function createBrandedImage(imageBuffer, captionText) {
 
     let boldElems = '';
     boldLines.forEach((line, i) => {
-      boldElems += `<text font-family="LilaBold" font-size="82" fill="${GOLD}" x="60" y="${boldBaseY + i * 96}" text-anchor="start" filter="url(#ts)">${escapeXml(line)}</text>`;
+      boldElems += `<text font-family="Playfair Display" font-weight="bold" font-size="82" fill="${GOLD}" x="60" y="${boldBaseY + i * 96}" text-anchor="start" filter="url(#ts)">${escapeXml(line)}</text>`;
     });
 
     const scriptY = boldBaseY + boldLines.length * 96 + 5;
@@ -624,9 +621,9 @@ async function createBrandedImage(imageBuffer, captionText) {
       <rect x="0" y="${SIZE - panelH}" width="${SIZE}" height="${panelH}" fill="url(#gb)"/>
       <line x1="60" y1="${accentLineY}" x2="200" y2="${accentLineY}" stroke="${GOLD}" stroke-width="1.5" opacity="0.7"/>
       ${boldElems}
-      <text font-family="LilaScript" font-size="52" fill="rgba(255,255,255,0.75)" x="62" y="${scriptY}" text-anchor="start" filter="url(#ts)">everyday gold.</text>
-      <text font-family="LilaTagline" font-size="18" fill="rgba(255,255,255,0.80)" x="60" y="${SIZE - 30}" text-anchor="start">MIAMI'S EVERYDAY GOLD</text>
-      <text font-family="LilaTagline" font-size="18" fill="rgba(255,255,255,0.80)" x="${SIZE - 60}" y="${SIZE - 30}" text-anchor="end">@lilamiami</text>`;
+      <text font-family="Dancing Script" font-weight="bold" font-size="52" fill="rgba(255,255,255,0.75)" x="62" y="${scriptY}" text-anchor="start" filter="url(#ts)">everyday gold.</text>
+      <text font-family="Roboto" font-size="18" fill="rgba(255,255,255,0.80)" x="60" y="${SIZE - 30}" text-anchor="start">MIAMI'S EVERYDAY GOLD</text>
+      <text font-family="Roboto" font-size="18" fill="rgba(255,255,255,0.80)" x="${SIZE - 60}" y="${SIZE - 30}" text-anchor="end">@lilamiami</text>`;
   }
 
   const textSvg = Buffer.from(`<svg width="${SIZE}" height="${SIZE}" xmlns="http://www.w3.org/2000/svg">${textSvgStr}</svg>`);
@@ -712,7 +709,7 @@ async function createVideoTextOverlay(captionText) {
 
   let captionElems = '';
   captionLines.forEach((line, i) => {
-    captionElems += `<text font-family="LilaCaption" font-size="84" fill="${GOLD}" x="${SIZE / 2}" y="${captionBaseY + i * lineH}" text-anchor="middle" filter="url(#ts)">${escapeXml(line)}</text>`;
+    captionElems += `<text font-family="DM Serif Display" font-style="italic" font-size="84" fill="${GOLD}" x="${SIZE / 2}" y="${captionBaseY + i * lineH}" text-anchor="middle" filter="url(#ts)">${escapeXml(line)}</text>`;
   });
 
   const taglines = buildTaglineAndHandle(SIZE);

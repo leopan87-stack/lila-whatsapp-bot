@@ -1,2 +1,10 @@
 [phases.setup]
-nixPkgs = ["dejavu_fonts", "fontconfig"]
+nixPkgs = ["dejavu_fonts", "fontconfig", "ffmpeg"]
+
+[phases.build]
+cmds = [
+  "npm install",
+  "mkdir -p /usr/share/fonts/truetype/lila",
+  "cp fonts/*.ttf /usr/share/fonts/truetype/lila/",
+  "fc-cache -fv"
+]
