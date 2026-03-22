@@ -177,6 +177,12 @@ const app = express();
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 
+// Test endpoint — trigger morning ping manually
+app.get('/test-ping', async (req, res) => {
+  await broadcastMorningPing();
+  res.send('✅ Morning ping sent!');
+});
+
 // In-memory image store — serves images to Instagram (ImgBB blocks IG crawlers)
 const imageStore = new Map();
 app.get('/img/:id', (req, res) => {
