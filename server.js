@@ -40,8 +40,8 @@ async function createBrandedImageAI(imageBuffer, captionText) {
 Transform this photo into an editorial Instagram image:
 - If there is a person in the photo, keep them EXACTLY as-is — do NOT alter their face, body, skin, or appearance in any way
 - Keep the jewelry EXACTLY as-is — same shape, colors, materials, design — do NOT modify it
-- Replace or enhance the background creatively — choose a setting that complements the jewelry's colors, style, and mood
-- Enhance the lighting to make the jewelry glow and the overall image look luxurious and editorial
+- Darken and blur the background to keep all focus on the jewelry and the person wearing it — soft bokeh, deep shadow, luxury studio feel
+- Enhance the lighting to make the jewelry glow and stand out beautifully
 - Output: square 1:1 format, photorealistic, no text, no watermarks`;
 
   let enhancedBuffer;
