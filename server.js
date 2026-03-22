@@ -8,7 +8,17 @@ const sharp = require('sharp');
 const fs = require('fs');
 const path = require('path');
 const Jimp = require('jimp');
-console.log('✅ Jimp ready');
+const TextToSVG = require('text-to-svg');
+
+let captionTTS = null;
+let taglineTTS = null;
+try {
+  captionTTS = TextToSVG.loadSync(path.join(__dirname, 'fonts', 'PlayfairDisplay-Italic.ttf'));
+  taglineTTS = TextToSVG.loadSync(path.join(__dirname, 'fonts', 'Roboto-Regular.ttf'));
+  console.log('✅ Fonts loaded: Playfair Display Italic + Roboto');
+} catch (e) {
+  console.warn('⚠️ Font load failed, will use bitmap fallback:', e.message);
+}
 
 const app = express();
 app.use(express.urlencoded({ extended: false }));
@@ -169,7 +179,7 @@ async function createBrandedImage(imageBuffer, captionText) {
   }
   console.log(`🖊️ Drawing: "${clean}"`);
 
-  // Word wrap (~22 chars per line at 70px)
+  // Word wrap (~22 chars per line at 68px)
   const words = clean.split(' ');
   const svgLines = [];
   let cur = '';
@@ -185,45 +195,86 @@ async function createBrandedImage(imageBuffer, captionText) {
   }
   if (cur && svgLines.length < 4) svgLines.push(cur);
 
-  const lineH = 80;
-  const captionY = SIZE - 115 - (svgLines.length - 1) * lineH;
-  const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  const tspans = svgLines.map((line, i) =>
-    `<tspan x="60" dy="${i === 0 ? 0 : lineH}">${esc(line)}</tspan>`
-  ).join('');
+  // --- text-to-svg path rendering (Playfair Display Italic) ---
+  if (captionTTS && taglineTTS) {
+    const lineH = 82;
+    const captionY = SIZE - 115 - (svgLines.length - 1) * lineH;
 
-  // SVG overlay: dark bottom gradient + serif text + tagline
-  const textSvg = Buffer.from(
-    `<svg width="${SIZE}" height="${SIZE}" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="black" stop-opacity="0"/>
-          <stop offset="100%" stop-color="black" stop-opacity="0.80"/>
-        </linearGradient>
-        <filter id="ts" x="-5%" y="-5%" width="110%" height="130%">
-          <feDropShadow dx="2" dy="2" stdDeviation="4" flood-color="black" flood-opacity="0.85"/>
-        </filter>
-      </defs>
-      <rect x="0" y="${SIZE - 420}" width="${SIZE}" height="420" fill="url(#g)"/>
-      <text x="60" y="${captionY}"
-        font-family="DejaVu Serif, Georgia, serif"
-        font-size="70" font-style="italic"
-        fill="white" filter="url(#ts)">${tspans}</text>
-      <text x="60" y="${SIZE - 42}"
-        font-family="DejaVu Sans, Arial, sans-serif"
-        font-size="21" letter-spacing="3"
-        fill="rgba(255,255,255,0.85)">MIAMI'S EVERYDAY GOLD</text>
-      <text x="${SIZE - 60}" y="${SIZE - 42}"
-        font-family="DejaVu Sans, Arial, sans-serif"
-        font-size="21" text-anchor="end"
-        fill="rgba(255,255,255,0.85)">@lilamiami</text>
-    </svg>`
-  );
+    let captionPaths = '';
+    svgLines.forEach((line, i) => {
+      captionPaths += captionTTS.getPath(line, {
+        fontSize: 68,
+        anchor: 'top left',
+        x: 60,
+        y: captionY + i * lineH,
+        attributes: { fill: 'white', filter: 'url(#ts)' },
+      });
+    });
 
-  return await sharp(vignetteBuffer)
-    .composite([{ input: textSvg, top: 0, left: 0 }])
-    .jpeg({ quality: 95 })
-    .toBuffer();
+    const taglinePath = taglineTTS.getPath("MIAMI'S EVERYDAY GOLD", {
+      fontSize: 20,
+      anchor: 'top left',
+      x: 60,
+      y: SIZE - 65,
+      attributes: { fill: 'rgba(255,255,255,0.85)' },
+    });
+
+    const lilaText = '@lilamiami';
+    const lilaW = taglineTTS.getMetrics(lilaText, { fontSize: 20 }).width;
+    const lilaPath = taglineTTS.getPath(lilaText, {
+      fontSize: 20,
+      anchor: 'top left',
+      x: SIZE - 60 - lilaW,
+      y: SIZE - 65,
+      attributes: { fill: 'rgba(255,255,255,0.85)' },
+    });
+
+    const textSvg = Buffer.from(
+      `<svg width="${SIZE}" height="${SIZE}" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="black" stop-opacity="0"/>
+            <stop offset="100%" stop-color="black" stop-opacity="0.80"/>
+          </linearGradient>
+          <filter id="ts" x="-5%" y="-10%" width="110%" height="130%">
+            <feDropShadow dx="1" dy="2" stdDeviation="3" flood-color="black" flood-opacity="0.8"/>
+          </filter>
+        </defs>
+        <rect x="0" y="${SIZE - 420}" width="${SIZE}" height="420" fill="url(#g)"/>
+        ${captionPaths}
+        ${taglinePath}
+        ${lilaPath}
+      </svg>`
+    );
+
+    return await sharp(vignetteBuffer)
+      .composite([{ input: textSvg, top: 0, left: 0 }])
+      .jpeg({ quality: 95 })
+      .toBuffer();
+  }
+
+  // --- Jimp bitmap fallback (if fonts failed to load) ---
+  const image = await Jimp.read(vignetteBuffer);
+  const gradStart = Math.floor(SIZE * 0.58);
+  for (let y = gradStart; y < SIZE; y++) {
+    const alpha = Math.floor(((y - gradStart) / (SIZE - gradStart)) * 180);
+    for (let x = 0; x < SIZE; x++) {
+      const color = image.getPixelColor(x, y);
+      const r = (color >> 24) & 0xff;
+      const g = (color >> 16) & 0xff;
+      const b = (color >> 8) & 0xff;
+      const nr = Math.max(0, r - Math.floor(r * alpha / 255));
+      const ng = Math.max(0, g - Math.floor(g * alpha / 255));
+      const nb = Math.max(0, b - Math.floor(b * alpha / 255));
+      image.setPixelColor(Jimp.rgbaToInt(nr, ng, nb, 255), x, y);
+    }
+  }
+  const font64 = await Jimp.loadFont(Jimp.FONT_SANS_64_WHITE);
+  const font16 = await Jimp.loadFont(Jimp.FONT_SANS_16_WHITE);
+  image.print(font64, 50, SIZE - 300, { text: clean, alignmentX: Jimp.HORIZONTAL_ALIGN_LEFT }, SIZE - 100, 240);
+  image.print(font16, 50, SIZE - 55, "MIAMI'S EVERYDAY GOLD");
+  image.print(font16, SIZE - 220, SIZE - 55, '@lilamiami');
+  return await image.getBufferAsync(Jimp.MIME_JPEG);
 }
 
 async function uploadToImgBB(imageBuffer) {
