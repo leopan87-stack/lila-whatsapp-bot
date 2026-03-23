@@ -467,13 +467,12 @@ async function handleWebsitePull(from) {
       catch (e) { brandedBuffer = await sharp(buffer).resize(1080, 1080, { fit: 'cover' }).jpeg({ quality: 92 }).toBuffer(); }
     }
 
-    const whatsappUrl = await uploadToImgBB(brandedBuffer);
     const igUrl = storeImageForInstagram(brandedBuffer);
     lastImageUrl[from] = igUrl;
     lastCaption[from] = extractInstagramCaption(content);
     setState(from, 'waiting_for_approval');
 
-    await sendImageMessage(from, whatsappUrl, `What do you think, ${getName(from)}? 👆\n\n*YES* — post it to Instagram ✅\n*RECREATE* — try a different version 🔄\n*NO* — skip this one ❌`);
+    await sendImageMessage(from, igUrl, `What do you think, ${getName(from)}? 👆\n\n*YES* — post it to Instagram ✅\n*RECREATE* — try a different version 🔄\n*NO* — skip this one ❌`);
     for (const chunk of splitMessage(extractInstagramCaption(content))) await sendMessage(from, chunk);
 
   } catch (err) {
@@ -1091,14 +1090,11 @@ async function processPhoto(from, mediaUrl, mediaContentType, caption, withModel
       brandedBuffer = await createBrandedImage(buffer, shortCaption);
     }
 
-    // Upload to ImgBB (for WhatsApp preview)
-    const imageUrl = await uploadToImgBB(brandedBuffer);
-
-    // Store in memory for Instagram (ImgBB blocked by IG crawlers)
+    // Store in Railway memory — used for both WhatsApp preview and Instagram
     const igImageUrl = storeImageForInstagram(brandedBuffer);
     lastImageUrl[from] = igImageUrl;
     lastMediaType[from] = 'image';
-    console.log(`📸 Instagram URL: ${igImageUrl}`);
+    console.log(`📸 Image URL: ${igImageUrl}`);
 
     // Extract full caption + hashtags for Instagram post
     const igCaption = extractInstagramCaption(content);
@@ -1107,7 +1103,7 @@ async function processPhoto(from, mediaUrl, mediaContentType, caption, withModel
     setState(from, 'waiting_for_approval');
 
     // Image with approval prompt as caption — arrives together, guaranteed order
-    await sendImageMessage(from, imageUrl, `What do you think, ${getName(from)}? 👆\n\n*YES* — post it to Instagram ✅\n*RECREATE* — try a different version 🔄\n*NO* — skip this one ❌`);
+    await sendImageMessage(from, igImageUrl, `What do you think, ${getName(from)}? 👆\n\n*YES* — post it to Instagram ✅\n*RECREATE* — try a different version 🔄\n*NO* — skip this one ❌`);
 
     // Caption + hashtags sent after
     for (const chunk of splitMessage(extractInstagramCaption(content))) {
@@ -1201,12 +1197,11 @@ app.post('/webhook', async (req, res) => {
           try { brandedBuffer = await createBrandedImage(buffer, shortCaption); }
           catch (e) { brandedBuffer = await sharp(buffer).resize(1080,1080,{fit:'cover'}).jpeg({quality:92}).toBuffer(); }
         }
-        const whatsappUrl = await uploadToImgBB(brandedBuffer);
         const igUrl = storeImageForInstagram(brandedBuffer);
         lastImageUrl[from] = igUrl;
         lastCaption[from] = extractInstagramCaption(content);
         setState(from, 'waiting_for_approval');
-        await sendImageMessage(from, whatsappUrl, `What do you think, ${getName(from)}? 👆\n\n*YES* — post it to Instagram ✅\n*RECREATE* — try a different version 🔄\n*NO* — skip this one ❌`);
+        await sendImageMessage(from, igUrl, `What do you think, ${getName(from)}? 👆\n\n*YES* — post it to Instagram ✅\n*RECREATE* — try a different version 🔄\n*NO* — skip this one ❌`);
         for (const chunk of splitMessage(extractInstagramCaption(content))) await sendMessage(from, chunk);
       } else {
         await sendMessage(from, `That product doesn't have an image in the store. Send me a photo and I'll use that! 📸`);
