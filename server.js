@@ -95,7 +95,36 @@ STRICTLY FORBIDDEN: skin smoothing, airbrushing, dodge and burn, frequency separ
 - Background is soft, warm, slightly blurred — lifestyle feel, real environment
 - Lighting is diffused and soft — no harsh flash, no direct sun creating shine or hot spots on skin
 - The photo must look like a real professional camera shot, not AI-generated
-- Output: square 1:1 format, photorealistic, no text, no watermarks`
+- Output: square 1:1 format, photorealistic, no text, no watermarks
+
+Use the following model profile as additional reference for the skin and facial appearance only — ignore any jewelry or wearable references inside it, as the jewelry comes from the product photo:
+
+${JSON.stringify({
+  Complete_Model_Profile: {
+    Skin_Characteristics: {
+      Skin_Description: "Warm, olive-toned complexion with a sun-kissed, radiant glow. The texture features a dewy, luminous finish on the high points such as the cheekbones, tip of the nose, and brow bone, indicating a cosmetic highlight or natural skin hydration. Subtle, natural skin characteristics including fine pores, delicate vellus hair, and gentle natural creasing around the eyes are visible, maintaining a realistic, textured appearance. The overall finish contrasts soft matte areas with high-shine focal points."
+    },
+    Facial_Features_Details: [
+      {
+        name: "Parted Lips (Expression Detail)",
+        color: "Soft Rosy Nude (#B47366)",
+        material: "Satin-finish biological lip tissue with subtle, natural moisture and fine vertical lines",
+        position_on_face: "Lower center of the face"
+      },
+      {
+        name: "Eyebrows (Facial Detail)",
+        color: "Dark Ash Brown (#3F2D23)",
+        material: "Brushed natural keratin hair fibers layered over matte cosmetic powder",
+        position_on_face: "Upper face, arching symmetrically above the eyes"
+      }
+    ],
+    Skin_Color_Palette: [
+      { name: "Soft Rosy Nude", hex: "#B47366", material: "Satin lip tissue" },
+      { name: "Dark Ash Brown", hex: "#3F2D23", material: "Eyebrow hair and matte powder" },
+      { name: "Luminous Champagne (Highlight)", hex: "#F5D4A8", material: "Dewy skin epidermis with fine pigment" }
+    ]
+  }
+}, null, 2)}`
     : `You are a luxury photographer for Lila Miami, a jewelry brand in Miami.
 You are a luxury jewelry photographer. Take this product photo and create a stunning editorial version:
 - Keep the jewelry EXACTLY as-is — same shape, colors, stones, materials — do NOT modify the jewelry at all
