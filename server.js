@@ -430,8 +430,13 @@ async function handleWebsitePull(from) {
 
     const shortCaption = extractCaption(content);
     let brandedBuffer;
-    try { brandedBuffer = await createBrandedImage(buffer, shortCaption); }
-    catch (e) { brandedBuffer = await sharp(buffer).resize(1080, 1080, { fit: 'cover' }).jpeg({ quality: 92 }).toBuffer(); }
+    if (GOOGLE_AI_KEY) {
+      try { brandedBuffer = await createBrandedImageAI(buffer, shortCaption); }
+      catch (e) { brandedBuffer = await createBrandedImage(buffer, shortCaption); }
+    } else {
+      try { brandedBuffer = await createBrandedImage(buffer, shortCaption); }
+      catch (e) { brandedBuffer = await sharp(buffer).resize(1080, 1080, { fit: 'cover' }).jpeg({ quality: 92 }).toBuffer(); }
+    }
 
     const whatsappUrl = await uploadToImgBB(brandedBuffer);
     const igUrl = storeImageForInstagram(brandedBuffer);
