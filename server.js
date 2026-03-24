@@ -56,84 +56,46 @@ async function createBrandedImageAI(imageBuffer, captionText, withModel = false)
   const GOLD = '#F5D285';
   const base64Image = imageBuffer.toString('base64');
 
-  // Clean caption — used in both paths
-  let clean = stripEmojis(captionText).replace(/\*\*/g, '').replace(/\*/g, '').replace(/#+\s*/g, '').trim();
-  const dot = clean.search(/[.!?]/);
-  if (dot > 10 && dot < 100) clean = clean.substring(0, dot + 1);
-  else { clean = clean.substring(0, 55); const sp = clean.lastIndexOf(' '); if (sp > 15) clean = clean.substring(0, sp) + '...'; }
-
-  // ── Step 1: Gemini generates image (model + background + jewelry) ──
+  // ── Step 1: Gemini enhances photo ──
   const bgPrompt = withModel
-    ? `You are a luxury fashion photographer creating a complete, final Instagram post for Lila Miami, a premium jewelry brand in Miami.
+    ? `You are a professional jewelry photographer for Lila Miami, a luxury jewelry brand in Miami.
+Using the product photo as reference, generate a close-up lifestyle photo of the jewelry being worn — NO face, NO head.
 
-Generate a single, fully finished editorial photo that includes BOTH the model AND the text overlay rendered directly on the image. The output must be ready to post — no further editing needed.
+- Frame the shot tightly on the body part where the jewelry sits: wrist and hand for a bracelet, neck and collarbone for a necklace, earlobe and neck for earrings, finger for a ring
+- The face must NOT appear in the frame at all — crop well above or below it
+- Warm Latina skin tone, completely matte — not oily, not shiny, not plastic, not airbrushed
+- This is a macro close-up shot — treat it like an unedited candid photo taken in natural light, completely raw and unfiltered, no Facetune, no smoothing filters
 
-${JSON.stringify({
-  Shoot_Direction: {
-    instruction: "Lifestyle editorial portrait — model wearing the jewelry from the reference product photo",
-    framing: "Upper body portrait — face, neck, décolletage, and shoulders visible. The face IS included and is the focal point alongside the jewelry.",
-    background: "Soft, warm, slightly blurred lifestyle environment — beach dunes, warm sand, golden hour outdoor, or elegant soft interior",
-    lighting: "Diffused golden hour light — warm, soft, flattering. No harsh flash or direct sun.",
-    camera: "Shot at ISO 640, subtle natural grain in shadows, sharp focus on jewelry and face, soft bokeh background"
-  },
-  Model_Profile: {
-    skin_realism: {
-      critical_instruction: "STRICTLY FORBIDDEN: plastic skin, smooth AI skin, porcelain finish, frequency separation, beauty retouching, skin smoothing filters, airbrushing. The skin MUST look like an unedited RAW camera file.",
-      pores: "Open pores clearly visible across nose, cheeks, forehead, chin, neck, and chest — irregular in size and distribution, not uniform. Sebaceous filaments visible on nose. Real skin grain at pixel level.",
-      texture: "Micro-surface texture visible — skin has bumps, valleys, fine lines. NOT a smooth gradient. Visible dermis texture under the epidermis.",
-      subsurface: "Subsurface scattering visible — warm translucent glow from within on thin skin areas like nose tip and ears. Not opaque flat surface.",
-      vellus_hair: "Fine peach fuzz visible on cheeks, upper lip, and forehead — catching side light subtly",
-      imperfections: "One or two subtle blemishes, minor sun spots, uneven skin tone — natural melanin variation, not uniform color. Faint capillary redness under nose and around cheeks.",
-      highlights: "Skin highlights roll off softly and never clip to pure white — no blown-out hot spots",
-      iso_grain: "Subtle digital grain in shadow areas as if shot at ISO 800 on a real camera — adds photographic realism"
-    },
-    skin_tone: "Warm olive, sun-kissed bronze — #A8714B base with warm undertones",
-    overall_color_palette: ["#D6983A (Mustard Yellow)", "#A8714B (Warm Bronze Skin Tone)", "#F5D4A8 (Champagne Highlight)", "#3C271C (Dark Espresso Brown)", "#CFA75F (Metallic Gold)"],
-    facial_details: [
-      { name: "Cheekbone Highlight", color: "#F5D4A8 (Luminous Champagne)", description: "Natural skin luminosity — NOT heavy highlight product, just healthy skin glow" },
-      { name: "Lips", color: "#B47366 (Soft Rosy Nude)", description: "Satin-finish lip tissue with fine vertical lip lines visible, slight natural moisture" },
-      { name: "Eyebrows", color: "#3F2D23 (Dark Ash Brown)", description: "Individual hair strokes visible, natural density, not filled-in blocks" }
-    ]
-  },
-  Jewelry: {
-    critical_instruction: "The model MUST wear EXACTLY the jewelry shown in the reference product photo — same design, shape, colors, stones, and materials. Do NOT invent, simplify, or replace any part of the jewelry. Reproduce it with full fidelity.",
-    placement: "Draped naturally around the model's neck, resting on her décolletage, clearly visible, sharp, and well-lit"
-  },
-  Text_Overlay: {
-    caption: {
-      content: clean,
-      position: "Upper portion of the image, centered horizontally, rendered over the background above or around the model's head",
-      typography: {
-        classification: "Modern Serif / Didone-Inspired Display — inspired by fonts like Stellar or Gamote",
-        stroke_contrast: "Extreme — hairline thin horizontal strokes vs thick bold vertical stems",
-        serifs: "Flat, unbracketed, razor-sharp",
-        terminals: "Pointed and aggressive",
-        weight: "Bold display weight",
-        tracking: "Tight letter-spacing",
-        color: "#F5D285 (warm gold)",
-        size: "Large — each line approximately 1/7 of total image height",
-        shadow: "Subtle dark drop shadow for legibility",
-        alignment: "Centered",
-        max_lines: 3
-      }
-    },
-    tagline: {
-      content: "MIAMI'S EVERYDAY GOLD",
-      position: "Bottom center of image, inside a clean dark strip or directly over a dark area",
-      typography: {
-        style: "Clean spaced small caps, sans-serif",
-        color: "#F5D285 (warm gold)",
-        size: "Small — approximately 1/25 of image height",
-        tracking: "Wide letter-spacing"
-      }
-    }
-  },
-  Output_Requirements: {
-    format: "Square 1:1",
-    style: "Photorealistic luxury editorial — looks like a real high-end jewelry brand Instagram post",
-    forbidden: ["AI artifacts", "plastic or smooth mannequin skin", "invented jewelry", "missing text overlay", "blurry text"]
-  }
-}, null, 2)}`
+SKIN PHYSICS:
+- Subsurface scattering visible on thin skin areas — light passes slightly through collarbone and neck skin creating a warm translucent glow from within, not opaque flat surface
+- Skin is fully diffuse with zero specular highlights — only the jewelry reflects light
+- Skin surface has micro-bumps and valleys like real dermis — visible micro-normal texture, not flat
+- Faint pink and red capillary flush visible under the skin on chest and neck — the kind you see on real warm skin
+- Visible subdermal fat layer on collarbone creates soft natural volume
+
+SKIN DETAIL:
+- PORES must be clearly visible and open everywhere — neck, collarbone, chest, wrist — uneven pore size, sebaceous filaments, real skin grain at pixel level
+- Neck and collarbone must show real texture: fine horizontal neck lines, visible pores, skin grain — NOT smooth like a mannequin
+- Faint peach fuzz on neck and chest — fine hairs barely visible catching the side light
+- Tiny blue veins faintly visible under the skin near wrist and inner arm
+- Visible crease lines on wrist and knuckles, natural skin folds where hand bends
+- Subtle freckles, sun spots, one or two tiny blemishes — uneven melanin distribution, not uniform skin color
+- Natural skin tone variation — slight redness on collarbone, uneven warmth across chest and neck
+
+CAMERA & LENS:
+- Shot at ISO 640 — subtle natural digital grain visible especially in shadow areas
+- Focus is sharpest on the jewelry — skin slightly softer further from focal plane, natural gradual focus falloff
+- Slight magenta/green color shift in shadows like a real camera sensor
+- Skin highlights roll off softly and never clip to pure white
+- Side lighting raking across skin at low angle casting micro-shadows inside pores to reveal surface texture
+
+STRICTLY FORBIDDEN: skin smoothing, airbrushing, dodge and burn, frequency separation, beauty retouch, clarity boost on skin
+- The jewelry must match EXACTLY the design, colors, stones, and materials from the reference photo
+- The jewelry is the clear hero of the shot — well-lit, sharp, and beautiful
+- Background is soft, warm, slightly blurred — lifestyle feel, real environment
+- Lighting is diffused and soft — no harsh flash, no direct sun creating shine or hot spots on skin
+- The photo must look like a real professional camera shot, not AI-generated
+- Output: square 1:1 format, photorealistic, no text, no watermarks`
     : `You are a luxury photographer for Lila Miami, a jewelry brand in Miami.
 You are a luxury jewelry photographer. Take this product photo and create a stunning editorial version:
 - Keep the jewelry EXACTLY as-is — same shape, colors, stones, materials — do NOT modify the jewelry at all
@@ -157,12 +119,12 @@ You are a luxury jewelry photographer. Take this product photo and create a stun
     const parts = response.data.candidates[0].content.parts;
     const imgPart = parts.find(p => p.inlineData);
     if (imgPart) {
+      // Use cover now — WE add text via SVG, so cropping Gemini's output is fine
       enhancedBuffer = await sharp(Buffer.from(imgPart.inlineData.data, 'base64'))
         .resize(SIZE, SIZE, { fit: 'cover', position: 'center' })
         .jpeg({ quality: 95 })
         .toBuffer();
-      console.log('✅ Gemini generated full image successfully');
-      // Note: Gemini API does not render text in images (only the web UI does) — canvas handles text
+      console.log('✅ Gemini enhanced background successfully');
     } else {
       const textPart = parts.find(p => p.text);
       console.warn('⚠️ Gemini returned no image. Text response:', textPart?.text?.substring(0, 200));
@@ -181,8 +143,13 @@ You are a luxury jewelry photographer. Take this product photo and create a stun
       .toBuffer();
   }
 
-  // ── Step 2: Canvas always adds text overlay (Gemini API doesn't render text) ──
-  console.log(`🖊️ Adding canvas text overlay: "${clean}"`);
+  // ── Step 2: Our code adds text — 100% guaranteed, consistent every time ──
+  // Strip markdown formatting Claude may add (**bold**, *italic*, ## headings)
+  let clean = stripEmojis(captionText).replace(/\*\*/g, '').replace(/\*/g, '').replace(/#+\s*/g, '').trim();
+  const dot = clean.search(/[.!?]/);
+  if (dot > 10 && dot < 100) clean = clean.substring(0, dot + 1);
+  else { clean = clean.substring(0, 55); const sp = clean.lastIndexOf(' '); if (sp > 15) clean = clean.substring(0, sp) + '...'; }
+  console.log(`🖊️ Adding text overlay: "${clean}"`);
 
   const captionLines = wrapText(clean, 20, 3);
   const lineH = 88;
