@@ -77,12 +77,22 @@ ${JSON.stringify({
     camera: "Shot at ISO 640, subtle natural grain in shadows, sharp focus on jewelry and face, soft bokeh background"
   },
   Model_Profile: {
-    skin_description: "Warm, olive-toned complexion with a sun-kissed, radiant glow. Dewy luminous finish on cheekbones, tip of nose, and brow bone. Fine visible pores, delicate vellus hair, natural creasing around eyes. Soft matte areas contrasting with high-shine focal points. NO skin smoothing, NO airbrushing.",
+    skin_realism: {
+      critical_instruction: "STRICTLY FORBIDDEN: plastic skin, smooth AI skin, porcelain finish, frequency separation, beauty retouching, skin smoothing filters, airbrushing. The skin MUST look like an unedited RAW camera file.",
+      pores: "Open pores clearly visible across nose, cheeks, forehead, chin, neck, and chest — irregular in size and distribution, not uniform. Sebaceous filaments visible on nose. Real skin grain at pixel level.",
+      texture: "Micro-surface texture visible — skin has bumps, valleys, fine lines. NOT a smooth gradient. Visible dermis texture under the epidermis.",
+      subsurface: "Subsurface scattering visible — warm translucent glow from within on thin skin areas like nose tip and ears. Not opaque flat surface.",
+      vellus_hair: "Fine peach fuzz visible on cheeks, upper lip, and forehead — catching side light subtly",
+      imperfections: "One or two subtle blemishes, minor sun spots, uneven skin tone — natural melanin variation, not uniform color. Faint capillary redness under nose and around cheeks.",
+      highlights: "Skin highlights roll off softly and never clip to pure white — no blown-out hot spots",
+      iso_grain: "Subtle digital grain in shadow areas as if shot at ISO 800 on a real camera — adds photographic realism"
+    },
+    skin_tone: "Warm olive, sun-kissed bronze — #A8714B base with warm undertones",
     overall_color_palette: ["#D6983A (Mustard Yellow)", "#A8714B (Warm Bronze Skin Tone)", "#F5D4A8 (Champagne Highlight)", "#3C271C (Dark Espresso Brown)", "#CFA75F (Metallic Gold)"],
     facial_details: [
-      { name: "Cheekbone Highlight", color: "#F5D4A8 (Luminous Champagne)", description: "Dewy skin with reflective cosmetic pigments on upper cheekbones and bridge of nose" },
-      { name: "Lips", color: "#B47366 (Soft Rosy Nude)", description: "Satin-finish lip tissue with subtle natural moisture and fine vertical lines" },
-      { name: "Eyebrows", color: "#3F2D23 (Dark Ash Brown)", description: "Brushed keratin hair fibers over matte cosmetic powder, arching symmetrically" }
+      { name: "Cheekbone Highlight", color: "#F5D4A8 (Luminous Champagne)", description: "Natural skin luminosity — NOT heavy highlight product, just healthy skin glow" },
+      { name: "Lips", color: "#B47366 (Soft Rosy Nude)", description: "Satin-finish lip tissue with fine vertical lip lines visible, slight natural moisture" },
+      { name: "Eyebrows", color: "#3F2D23 (Dark Ash Brown)", description: "Individual hair strokes visible, natural density, not filled-in blocks" }
     ]
   },
   Jewelry: {
