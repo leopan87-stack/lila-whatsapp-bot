@@ -96,13 +96,26 @@ STRICTLY FORBIDDEN: skin smoothing, airbrushing, dodge and burn, frequency separ
 - Lighting is diffused and soft — no harsh flash, no direct sun creating shine or hot spots on skin
 - The photo must look like a real professional camera shot, not AI-generated
 - Output: square 1:1 format, photorealistic, no text, no watermarks`
-    : `You are a luxury photographer for Lila Miami, a jewelry brand in Miami.
-You are a luxury jewelry photographer. Take this product photo and create a stunning editorial version:
-- Keep the jewelry EXACTLY as-is — same shape, colors, stones, materials — do NOT modify the jewelry at all
-- Replace the background with a beautiful, luxurious setting that perfectly complements the jewelry's colors and style — think soft marble, warm silk fabric, natural stone, velvet, or an elegant lifestyle environment
-- Enhance the lighting to make the jewelry sparkle and glow
-- The result should look like a high-end jewelry brand Instagram post
-- Output: square 1:1 format, photorealistic, no text, no watermarks`;
+    : (() => {
+    const themes = [
+      "Lush tropical monstera leaves with warm golden hour light, deep emerald green tones, Miami jungle aesthetic",
+      "Sandy desert rock with seashells, warm beige textures, soft diffused sunlight, luxury jewelry backdrop",
+      "Deep emerald green satin fabric draped elegantly with gold accents, rich and luxurious feel",
+      "Turquoise Caribbean ocean water, white sand beach, golden tropical sunlight, Miami summer vibes",
+      "Dark forest green velvet background with gold star embroidery, rich jewel-tone luxury aesthetic"
+    ];
+    const theme = themes[Math.floor(Date.now() / 86400000) % themes.length];
+    return `You are a luxury jewelry photographer for Lila Miami, a premium jewelry brand in Miami.
+
+CRITICAL: The jewelry item in the photo must remain 100% untouched — same shape, design, colors, stones, metal, and materials. Do NOT alter, simplify, replace, or reinterpret the jewelry in any way.
+
+Your only job is to place the jewelry against this background theme: ${theme}
+
+- The jewelry is the hero — centered, sharp, perfectly lit
+- Background fills the frame beautifully but never competes with the jewelry
+- Enhance lighting to make the jewelry sparkle and glow naturally
+- Output: square 1:1 format, photorealistic, no text, no watermarks, no people`;
+  })();
 
   let enhancedBuffer;
   try {
@@ -144,47 +157,15 @@ You are a luxury jewelry photographer. Take this product photo and create a stun
   }
 
   // ── Step 2: Our code adds text — 100% guaranteed, consistent every time ──
-  // Strip markdown formatting Claude may add (**bold**, *italic*, ## headings)
-  let clean = stripEmojis(captionText).replace(/\*\*/g, '').replace(/\*/g, '').replace(/#+\s*/g, '').trim();
-  const dot = clean.search(/[.!?]/);
-  if (dot > 10 && dot < 100) clean = clean.substring(0, dot + 1);
-  else { clean = clean.substring(0, 55); const sp = clean.lastIndexOf(' '); if (sp > 15) clean = clean.substring(0, sp) + '...'; }
-  console.log(`🖊️ Adding text overlay: "${clean}"`);
-
-  const captionLines = wrapText(clean, 20, 3);
-  const lineH = 88;
-  const captionY = 50;
-
+  // Only tagline + logo — no caption text
   const overlayPng = await createCanvasOverlay(SIZE, (ctx) => {
-    // Top gradient
-    const topGrad = ctx.createLinearGradient(0, 0, 0, 260);
-    topGrad.addColorStop(0, 'rgba(0,0,0,0.80)');
-    topGrad.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = topGrad;
-    ctx.fillRect(0, 0, SIZE, 260);
-
-    // Bottom gradient
+    // Bottom gradient behind tagline
     const botGrad = ctx.createLinearGradient(0, SIZE - 100, 0, SIZE);
     botGrad.addColorStop(0, 'rgba(0,0,0,0)');
     botGrad.addColorStop(1, 'rgba(0,0,0,0.75)');
     ctx.fillStyle = botGrad;
     ctx.fillRect(0, SIZE - 100, SIZE, 100);
 
-    // Caption text
-    ctx.font = '89px "Bodoni Moda"';
-    ctx.fillStyle = GOLD;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.shadowColor = 'rgba(0,0,0,0.6)';
-    ctx.shadowBlur = 3;
-    ctx.shadowOffsetX = 1;
-    ctx.shadowOffsetY = 2;
-    captionLines.forEach((line, i) => {
-      ctx.fillText(line, SIZE / 2, captionY + i * lineH);
-    });
-
-    ctx.shadowColor = 'transparent';
-    ctx.shadowBlur = 0;
     drawTagline(ctx, SIZE);
   });
 
