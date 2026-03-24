@@ -62,9 +62,7 @@ async function createBrandedImageAI(imageBuffer, captionText, withModel = false)
   if (dot > 10 && dot < 100) clean = clean.substring(0, dot + 1);
   else { clean = clean.substring(0, 55); const sp = clean.lastIndexOf(' '); if (sp > 15) clean = clean.substring(0, sp) + '...'; }
 
-  // ── Step 1: Gemini generates image ──
-  let geminiHandledText = false; // true when Gemini bakes in the text (withModel path)
-
+  // ── Step 1: Gemini generates image (model + background + jewelry) ──
   const bgPrompt = withModel
     ? `You are a luxury fashion photographer creating a complete, final Instagram post for Lila Miami, a premium jewelry brand in Miami.
 
@@ -154,7 +152,7 @@ You are a luxury jewelry photographer. Take this product photo and create a stun
         .jpeg({ quality: 95 })
         .toBuffer();
       console.log('✅ Gemini generated full image successfully');
-      if (withModel) geminiHandledText = true; // Gemini baked in the text
+      // Note: Gemini API does not render text in images (only the web UI does) — canvas handles text
     } else {
       const textPart = parts.find(p => p.text);
       console.warn('⚠️ Gemini returned no image. Text response:', textPart?.text?.substring(0, 200));
@@ -173,23 +171,7 @@ You are a luxury jewelry photographer. Take this product photo and create a stun
       .toBuffer();
   }
 
-  // ── Step 2: Canvas text overlay — skipped for withModel when Gemini handled it ──
-  if (geminiHandledText) {
-    // Gemini baked text into the image — only add logo watermark
-    console.log('✅ Gemini handled text overlay — skipping canvas text step');
-    const composites = [];
-    if (logoBuffer) {
-      const logoMeta = await sharp(logoBuffer).metadata();
-      const logoW = logoMeta.width || 160;
-      const logoH = logoMeta.height || 50;
-      composites.push({ input: logoBuffer, top: SIZE - logoH - 28, left: SIZE - logoW - 35 });
-    }
-    if (composites.length) {
-      return await sharp(enhancedBuffer).composite(composites).jpeg({ quality: 100 }).toBuffer();
-    }
-    return enhancedBuffer;
-  }
-
+  // ── Step 2: Canvas always adds text overlay (Gemini API doesn't render text) ──
   console.log(`🖊️ Adding canvas text overlay: "${clean}"`);
 
   const captionLines = wrapText(clean, 20, 3);
