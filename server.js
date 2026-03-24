@@ -109,10 +109,12 @@ STRICTLY FORBIDDEN: skin smoothing, airbrushing, dodge and burn, frequency separ
 
 CRITICAL: The jewelry item in the photo must remain 100% untouched — same shape, design, colors, stones, metal, and materials. Do NOT alter, simplify, replace, or reinterpret the jewelry in any way.
 
-Your only job is to place the jewelry against this background theme: ${theme}
+FRAMING: The jewelry piece must be the absolute focal point — centered in the frame, filling at least 50% of the image. Crop tightly around the jewelry. No body parts, no neck, no chest — the jewelry floats against the background or rests on a surface. If the original photo has a person, remove them and place the jewelry alone.
 
-- The jewelry is the hero — centered, sharp, perfectly lit
-- Background fills the frame beautifully but never competes with the jewelry
+Background theme: ${theme}
+
+- Sharp focus on every detail of the jewelry — stones, metal texture, chain links
+- Background fills the frame beautifully but stays soft and blurred behind the piece
 - Enhance lighting to make the jewelry sparkle and glow naturally
 - Output: square 1:1 format, photorealistic, no text, no watermarks, no people`;
   })();
