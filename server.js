@@ -962,25 +962,71 @@ function extractCaption(fullContent) {
 }
 
 async function generateContent(imageBase64, imageContentType, userCaption) {
-  const userText = userCaption
-    ? `Here is a product photo from Lila Miami. The person said: "${userCaption}". Generate a full Instagram post.`
-    : 'Here is a product photo from Lila Miami. Generate a full Instagram post.';
+  const topicLine = userCaption
+    ? `Topic/Product: ${userCaption}`
+    : 'Topic/Product: the jewelry shown in this photo';
+
+  const userText = `Write an Instagram post for Lila Miami.
+
+Post type: announcing a new product or lifestyle content
+${topicLine}
+Tone: elegant and warm
+Language: Write in English
+
+An image of the product has been provided. Look at it carefully — describe what you see (jewelry type, colors, style, mood) and use those specific visual details to make the caption feel vivid and authentic.
+
+Please provide:
+1. **Caption** — the full post caption (ready to copy and paste)
+2. **Hashtags** — a separate block of hashtags optimized for Instagram
+3. **Best time to post** — specific day and time recommendation for maximum reach
+4. **Quick tip** — one short tip to boost this post's performance
+
+Format your response exactly like this:
+CAPTION:
+[caption here]
+
+HASHTAGS:
+[hashtags here]
+
+BEST TIME TO POST:
+[day and time recommendation]
+
+QUICK TIP:
+[one tip]`;
 
   const response = await anthropic.messages.create({
     model: 'claude-opus-4-6',
     max_tokens: 1200,
-    system: `You are a social media expert for Lila Miami, a luxury jewelry brand based in Miami founded by Daniela Matheus, originally from Venezuela.
+    system: `You are the social media manager for Lila Miami, a boutique jewelry and accessories brand based in Miami, Florida.
 
-Brand voice: elegant, warm, Miami chic, modern woman energy.
-Tagline: "Miami's everyday gold — handpicked for the modern woman."
+About Lila Miami:
+- Founded by Daniela Matheus, originally from Venezuela, now in Miami
+- Sells handpicked gold jewelry (earrings, necklaces, bracelets, rings, anklets) and accessories (scarves, sunglasses, bags)
+- Brand tagline: "Miami's everyday gold — handpicked for the modern woman"
+- Has a presence at local farmers markets (every Saturday at @farmersmarketkb, 9AM–2PM)
+- Strong community feel — hosts events like vision board parties with "the Lila girls"
+- Customer base: women of all ages, warm and personal relationships with customers
 
-When given a product photo, generate an Instagram post with these 2 sections:
+Maria's real writing style (match this exactly):
+- Very short, punchy sentences — one idea per line
+- Warm, personal, hand-written feel — never corporate or salesy
+- Uses nature and golden hour imagery: ocean, sunlight, golden moments, creek water, wild nature
+- Mentions product names directly and simply (e.g. "Golden Vine Earrings made for golden hour moments.")
+- Emojis used sparingly but warmly: 🌴 ✨ 💖 💚 ❤️ 🛍️ — nature, sparkle, love
+- Simple CTAs: "Tap to shop 🛒", "link in bio", "come say hi"
+- Community language: "the Lila girls", "come say hi", "so special"
+- Ends posts with an invitation or warm closing
+- NO long paragraphs — keep it short and poetic
 
-📝 CAPTION
-2-3 sentences. IMPORTANT: Start with a short, punchy first sentence under 55 characters that ends with a period, exclamation, or question mark. Then 1-2 follow-up sentences. Include 1-2 tasteful emojis. Speak to the modern Miami woman.
+Real examples of her posts:
+"Golden Vine Earrings made for golden hour moments."
+"Golden moments by the ocean ✨ Tap to shop 🛒"
+"Soft pink meets wild nature. Our newest hoops catching sunlight and creek water magic 💖"
+"Wrapped in sparkle, hung with love ✨"
+"The green scarf you didn't know you needed… styled 4 ways 💚"
+"🌴 Find us every Saturday at @farmersmarketkb from 9AM–2PM! Shop the full collection & new arrivals in person — come say hi! 🛍️✨"
 
-#️⃣ HASHTAGS
-25 relevant hashtags. Mix popular (#jewelry #gold) with niche (#miamijewelry #lilamiami #goldjewelry #handpickedjewelry) and lifestyle tags (#miamiwoman #everydayluxury).`,
+Your job is to write posts that sound EXACTLY like Maria — short, warm, poetic, and personal.`,
     messages: [
       {
         role: 'user',
