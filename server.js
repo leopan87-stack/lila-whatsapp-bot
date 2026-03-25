@@ -1010,12 +1010,41 @@ function splitMessage(text, maxLen = 1500) {
   return chunks;
 }
 
-async function processPhoto(from, mediaUrl, mediaContentType, caption, withModel = false) {
+async function createSimpleBrandedImage(imageBuffer) {
+  const SIZE = 1080;
+  const GOLD = '#F5D285';
+
+  // Resize to square, slight warm-up to make it look polished
+  const resized = await sharp(imageBuffer)
+    .resize(SIZE, SIZE, { fit: 'cover', position: 'center' })
+    .modulate({ brightness: 1.03, saturation: 1.1 })
+    .jpeg({ quality: 95 })
+    .toBuffer();
+
+  // Canvas overlay — bottom gradient + tagline + logo
+  const overlayPng = await createCanvasOverlay(SIZE, (ctx) => {
+    const botGrad = ctx.createLinearGradient(0, SIZE - 100, 0, SIZE);
+    botGrad.addColorStop(0, 'rgba(0,0,0,0)');
+    botGrad.addColorStop(1, 'rgba(0,0,0,0.75)');
+    ctx.fillStyle = botGrad;
+    ctx.fillRect(0, SIZE - 100, SIZE, 100);
+    drawTagline(ctx, SIZE);
+  });
+
+  const composites = [{ input: overlayPng, top: 0, left: 0 }];
+  if (logoBuffer) {
+    const logoMeta = await sharp(logoBuffer).metadata();
+    const logoW = logoMeta.width || 160;
+    const logoH = logoMeta.height || 50;
+    composites.push({ input: logoBuffer, top: SIZE - logoH - 28, left: SIZE - logoW - 35 });
+  }
+  return await sharp(resized).composite(composites).jpeg({ quality: 95 }).toBuffer();
+}
+
+async function processPhoto(from, mediaUrl, mediaContentType, caption) {
   if (processing.has(from)) return; // ignore duplicate webhook
   processing.add(from);
-  await sendMessage(from, withModel
-    ? `Love it! Generating your post with a model wearing it, ${getName(from)}... 👗✨`
-    : `Perfect! Give me a moment while I create your post, ${getName(from)}... ✨`);
+  await sendMessage(from, `Perfect! Give me a moment while I create your post, ${getName(from)}... ✨`);
 
   try {
     const { buffer, contentType } = await downloadImageBuffer(mediaUrl);
@@ -1025,24 +1054,10 @@ async function processPhoto(from, mediaUrl, mediaContentType, caption, withModel
     const content = await generateContent(base64, contentType, caption);
     lastContent[from] = content;
 
-    // Extract short caption for image overlay
-    const shortCaption = extractCaption(content);
-    console.log(`📝 Extracted caption: "${shortCaption.substring(0, 100)}..."`);
+    console.log(`📝 Caption generated`);
 
-    // Create branded image — try Gemini AI first, fall back to sharp/SVG
-    let brandedBuffer;
-    if (GOOGLE_AI_KEY) {
-      try {
-        console.log('🎨 Using Gemini AI image enhancement...');
-        brandedBuffer = await createBrandedImageAI(buffer, shortCaption, withModel);
-        console.log('✅ Gemini image ready');
-      } catch (aiErr) {
-        console.error('⚠️ Gemini failed, falling back to sharp:', aiErr.message);
-        brandedBuffer = await createBrandedImage(buffer, shortCaption);
-      }
-    } else {
-      brandedBuffer = await createBrandedImage(buffer, shortCaption);
-    }
+    // Original photo — resize to square + tagline + logo only (no AI enhancement)
+    const brandedBuffer = await createSimpleBrandedImage(buffer);
 
     // Store in Railway memory — used for both WhatsApp preview and Instagram
     const igImageUrl = storeImageForInstagram(brandedBuffer);
@@ -1105,22 +1120,20 @@ app.post('/webhook', async (req, res) => {
 
   if (currentState === 'waiting_for_photo') {
     if (numMedia > 0 && mediaUrl) {
-      // Cancel any scheduled post if a new photo/video comes in
       if (scheduledPosts[from]) {
         clearTimeout(scheduledPosts[from]);
         delete scheduledPosts[from];
-        await sendMessage(from, `Got it — I cancelled the scheduled post and I'll use this new one instead! 🔄`);
       }
       const isVideo = mediaContentType.startsWith('video/');
-      pendingPhoto[from] = { mediaUrl, mediaContentType, isVideo };
-      setState(from, 'waiting_for_keywords');
-      await sendMessage(from, isVideo
-        ? `Love it, ${getName(from)}! 🎬 Any keywords or details for the caption?\n\nExamples: "new arrival", "gold bracelet", "summer vibes"\n\nOr say *skip* to go straight to it!`
-        : `Love it, ${getName(from)}! 💎 Before I create your post — any keywords or details you want me to highlight?\n\nExamples: "gift for mom", "gold bracelet", "new arrival", "summer vibes"\n\nOr just say *skip* to go straight to it!`);
+      if (isVideo) {
+        await processVideo(from, mediaUrl, '');
+      } else {
+        await processPhoto(from, mediaUrl, mediaContentType, '');
+      }
     } else if (['pull from website', 'pull website', 'website', 'new collection'].some(w => body.includes(w))) {
       await handleWebsitePull(from);
     } else {
-      await sendMessage(from, `Send me a Lila Miami product photo 📸 or would you like me to pull a piece from your new arrivals on the website and create the post for you? Just say *website*! 💎`);
+      await sendMessage(from, `Send me a Lila Miami product photo 📸 or say *website* to pull from your new arrivals! 💎`);
     }
     return;
   }
@@ -1167,38 +1180,6 @@ app.post('/webhook', async (req, res) => {
     return;
   }
 
-  if (currentState === 'waiting_for_keywords') {
-    const keywords = body === 'skip' ? '' : rawBody;
-    const pending = pendingPhoto[from];
-    if (pending) {
-      if (pending.isVideo) {
-        // Videos skip model choice — go straight to processing
-        delete pendingPhoto[from];
-        await processVideo(from, pending.mediaUrl, keywords);
-      } else {
-        pendingPhoto[from] = { ...pending, keywords };
-        setState(from, 'waiting_for_model_choice');
-        await sendMessage(from, `Got it! 💎 One more thing — would you like me to add a model wearing the piece?\n\n*YES* — generate a model wearing it 👗\n*NO* — enhance with a luxury background 🌿✨`);
-      }
-    } else {
-      setState(from, 'waiting_for_photo');
-      await sendMessage(from, `Send me the photo first, ${getName(from)}! 📸`);
-    }
-    return;
-  }
-
-  if (currentState === 'waiting_for_model_choice') {
-    const pending = pendingPhoto[from];
-    delete pendingPhoto[from];
-    if (!pending) {
-      setState(from, 'waiting_for_photo');
-      await sendMessage(from, `Send me the photo first, ${getName(from)}! 📸`);
-      return;
-    }
-    const withModel = ['yes', 'si', 'sí', 'yep', 'yeah', 'model'].some(w => body.includes(w));
-    await processPhoto(from, pending.mediaUrl, pending.mediaContentType, pending.keywords || '', withModel);
-    return;
-  }
 
   if (currentState === 'waiting_for_approval') {
     const isYes = ['yes', 'si', 'sí', 'yep', 'yeah', 'ok', 'perfect', 'perfecto', 'listo'].some(w => body.includes(w));
@@ -1256,19 +1237,18 @@ app.post('/webhook', async (req, res) => {
     if (scheduledPosts[from]) {
       clearTimeout(scheduledPosts[from]);
       delete scheduledPosts[from];
-      await sendMessage(from, `Got it — I cancelled the scheduled post and I'll use this new one instead! 🔄`);
     }
     const isVideo = mediaContentType.startsWith('video/');
-    pendingPhoto[from] = { mediaUrl, mediaContentType, isVideo };
-    setState(from, 'waiting_for_keywords');
-    await sendMessage(from, isVideo
-      ? `Love it, ${getName(from)}! 🎬 Any keywords or details for the caption?\n\nOr say *skip* to go straight to it!`
-      : `Love it, ${getName(from)}! 💎 Any keywords or details you want me to highlight?\n\nExamples: "gold cuff", "gift for her", "new arrival", "summer vibes"\n\nOr just say *skip* to go straight to it!`);
+    if (isVideo) {
+      await processVideo(from, mediaUrl, '');
+    } else {
+      await processPhoto(from, mediaUrl, mediaContentType, '');
+    }
   } else if (['pull from website', 'pull website', 'website', 'new collection'].some(w => body.includes(w))) {
     await handleWebsitePull(from);
   } else {
     setState(from, 'waiting_for_photo');
-    await sendMessage(from, `Hi ${getName(from)}! 👋 Send me a Lila Miami product photo 📸 — or would you like me to pull a piece from your new arrivals on the website and create the post for you? Just say *website*! 💎`);
+    await sendMessage(from, `Hi ${getName(from)}! 👋 Send me a product photo 📸 and I'll create your Instagram post right away! 💎`);
   }
 });
 
